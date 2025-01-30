@@ -1096,7 +1096,7 @@ static int syna_dev_create_input_device(struct syna_tcm *tcm)
 #ifdef ENABLE_WAKEUP_GESTURE
 	set_bit(KEY_WAKEUP, input_dev->keybit);
 	input_set_capability(input_dev, EV_KEY, KEY_WAKEUP);
-	for (i = UP_VEE; i <= S_GESTURE; i++) {
+	for (i = DOU_TAP; i <= S_GESTURE; i++) {
 		set_bit(KEY_GESTURE_START + i, input_dev->keybit);
 	}
 	set_bit(KEY_UNDER_WATER, input_dev->keybit);
