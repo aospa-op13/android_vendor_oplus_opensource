@@ -758,6 +758,14 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 				touch_data->gesture_id);
 
 			switch (touch_data->gesture_id) {
+			case DTAP_DETECT:
+				touch_data->gesture_type = DOU_TAP;
+				break;
+
+			case STAP_DETECT:
+				touch_data->gesture_type = SINGLE_TAP;
+				break;
+
 			case CIRCLE_DETECT:
 				touch_data->gesture_type = CIRCLE_GESTURE;
 				break;
@@ -812,10 +820,6 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 
 			case HEART_DETECT:
 				touch_data->gesture_type = HEART;
-				break;
-
-			case STAP_DETECT:
-				touch_data->gesture_type = SINGLE_TAP;
 				break;
 
 			case S_UNICODE:
@@ -915,10 +919,12 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 				input_report_key(input_dev, KEY_WAKEUP, 0);
 				input_sync(input_dev);
 			} else {
-				input_report_key(input_dev, KEY_GESTURE_START + touch_data->gesture_type, 1);
-				input_sync(input_dev);
-				input_report_key(input_dev, KEY_GESTURE_START + touch_data->gesture_type, 0);
-				input_sync(input_dev);
+				if (touch_data->gesture_type != DOU_TAP && touch_data->gesture_type != SINGLE_TAP) {
+					input_report_key(input_dev, KEY_GESTURE_START + touch_data->gesture_type, 1);
+					input_sync(input_dev);
+					input_report_key(input_dev, KEY_GESTURE_START + touch_data->gesture_type, 0);
+					input_sync(input_dev);
+				}
 			}
 		}
 	}
@@ -1094,9 +1100,7 @@ static int syna_dev_create_input_device(struct syna_tcm *tcm)
 
 	set_bit(KEY_SLEEP, input_dev->keybit);
 #ifdef ENABLE_WAKEUP_GESTURE
-	set_bit(KEY_WAKEUP, input_dev->keybit);
-	input_set_capability(input_dev, EV_KEY, KEY_WAKEUP);
-	for (i = DOU_TAP; i <= S_GESTURE; i++) {
+	for (i = UP_VEE; i <= S_GESTURE; i++) {
 		set_bit(KEY_GESTURE_START + i, input_dev->keybit);
 	}
 	set_bit(KEY_UNDER_WATER, input_dev->keybit);
@@ -3568,8 +3572,8 @@ static int syna_dev_probe(struct platform_device *pdev)
 	tcm->helper_enabled = false;
 #endif
 #ifdef ENABLE_WAKEUP_GESTURE
-	tcm->lpwg_enabled = false;
-	tcm->gesture_type = 0x0000; /* Disable All Gesture */
+	tcm->lpwg_enabled = true;
+	tcm->gesture_type = 0x3FFF; /* Enable all gestures */
 	tcm->touch_and_hold = 0;
 	syna_dev_update_lpwg_status(tcm);
 #else
