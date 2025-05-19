@@ -725,6 +725,7 @@ struct syna_tcm {
 	atomic_t single_tap_pressed;
 	atomic_t double_tap_pressed;
 	unsigned short touch_rate;
+	unsigned short glove_mode;
 
 	unsigned int waiting_frame;
 	unsigned int wait_for_ioctl_operation;
