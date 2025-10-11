@@ -14,23 +14,23 @@ else
 $(info CONFIG_TOUCHPANEL_FAULT_INJECT_ENABLE is N)
 endif
 
-oplus_bsp_tp_comon-y := util_interface/touch_interfaces.o
-oplus_bsp_tp_comon-y += touch_comon_api/touch_comon_api.o
-oplus_bsp_tp_comon-y += touchpanel_healthinfo/touchpanel_healthinfo.o
-oplus_bsp_tp_comon-y += touchpanel_healthinfo/touchpanel_exception.o
-oplus_bsp_tp_comon-y += touchpanel_autotest/touchpanel_autotest.o
-oplus_bsp_tp_comon-y += touchpanel_prevention/touchpanel_prevention.o
+oplus_bsp_tp_common-y := util_interface/touch_interfaces.o
+oplus_bsp_tp_common-y += touch_common_api/touch_common_api.o
+oplus_bsp_tp_common-y += touchpanel_healthinfo/touchpanel_healthinfo.o
+oplus_bsp_tp_common-y += touchpanel_healthinfo/touchpanel_exception.o
+oplus_bsp_tp_common-y += touchpanel_autotest/touchpanel_autotest.o
+oplus_bsp_tp_common-y += touchpanel_prevention/touchpanel_prevention.o
 
-oplus_bsp_tp_comon-y += touchpanel_common_driver.o
-oplus_bsp_tp_comon-y += touchpanel_proc.o
-oplus_bsp_tp_comon-y += tp_ioctl.o
-oplus_bsp_tp_comon-y += message_list.o
-oplus_bsp_tp_comon-y += touch_pen/touch_pen_core.o
-oplus_bsp_tp_comon-y += touch_pen/touch_pen_algo.o
-oplus_bsp_tp_comon-y += touchpanel_tui_support/touchpanel_tui_support.o
+oplus_bsp_tp_common-y += touchpanel_common_driver.o
+oplus_bsp_tp_common-y += touchpanel_proc.o
+oplus_bsp_tp_common-y += tp_ioctl.o
+oplus_bsp_tp_common-y += message_list.o
+oplus_bsp_tp_common-y += touch_pen/touch_pen_core.o
+oplus_bsp_tp_common-y += touch_pen/touch_pen_algo.o
+oplus_bsp_tp_common-y += touchpanel_tui_support/touchpanel_tui_support.o
 
 obj-m += oplus_bsp_tp_common.o
-oplus_bsp_tp_common-y := $(oplus_bsp_tp_comon-y)
+oplus_bsp_tp_common-y := $(oplus_bsp_tp_common-y)
 ccflags-y += \
 	-DCONFIG_TOUCHPANEL_OPLUS_MODULE \
 	-I$(srctree)/$(src)
