@@ -59,6 +59,7 @@ def define_oplus_local_modules():
             "**/*.h",
             "qcom/qcom_pmicwd/qcom_pmicwd.c",
             "qcom/qcom_pmicwd/qcom_pwkpwr.c",
+	    "qcom/qcom_pmicwd/qcom_pmicwd_inject.c",
         ]),
         includes = ["."],
     )

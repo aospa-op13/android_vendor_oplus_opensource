@@ -49,3 +49,12 @@ struct syna_tcm {
 int syna_cdev_create_sysfs(struct syna_tcm *ptcm, struct platform_device *pdev);
 
 void syna_cdev_remove_sysfs(struct syna_tcm *ptcm);
+
+enum fingerprint_err_type {
+	FOD_ENABLE_NO_ERROR = 0,
+	/* reserved 1-6 */
+	FINGERPRINT_OUT_MOVE_IN = 6,
+	FINGERPRINT_AREA_NOT_MATCH = 7,
+	ANOTHER_FINGER_ON_NON_FP_ZONE = 8,
+	FINGERPRINT_DOWN_BEFORE_FP_ENABLE = 9,
+};
