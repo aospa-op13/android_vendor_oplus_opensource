@@ -30,6 +30,7 @@
 #include <oplus_chg_voter.h>
 #include <oplus_chg_state_retention.h>
 #include <recovery/state_keep.h>
+#include <oplus_mms_gauge.h>
 
 #if IS_ENABLED(CONFIG_OPLUS_DYNAMIC_CONFIG_CHARGER)
 #include "oplus_cfg.h"
@@ -1771,7 +1772,7 @@ static int oplus_cpa_parse_dt(struct oplus_cpa *cpa)
 {
 #define PPS_REGION_COUNT_MAX 16
 
-	struct device_node *cpa_node = cpa->dev->of_node;
+	struct device_node *cpa_node = oplus_get_node_by_child_gauge(cpa->dev->of_node);
 	struct device_node *node = cpa_node;
 	struct device_node *child;
 	int rc, num, i;

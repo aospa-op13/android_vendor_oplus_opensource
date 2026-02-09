@@ -316,8 +316,78 @@
                 },
                 "overwrite": false
             }
+        },
+        {
+            "lable": "OPLUS_IC_FUNC_GAUGE_FCC_VDELTA_CHECK",
+            "desc": {
+                "zh": "通知电量计, check delta volt"
+            },
+            "auto_debug_code": true,
+            "parameter_list": ["bool"],
+            "parameter_desc": [
+                {
+                    "range": "0-1",
+                    "type": "in",
+                    "desc": {
+                        "zh": "0:正常场景, 1:CV场景"
+                    }
+                }
+            ],
+            "vict": {
+                "read": false,
+                "write": {
+                    "cmd": "vict -f {id} -S vic-*",
+                    "desc": {
+                        "zh": "N/A"
+                    }
+                },
+                "overwrite": {
+                    "cmd": "vict -f {id} -O {val} vic-*",
+                    "desc": {
+                        "zh": "N/A"
+                    }
+                }
+            }
+        },
+        {
+            "lable": "OPLUS_IC_FUNC_GAUGE_FFC_T_RA_CHECK",
+            "desc": {
+                "zh": "通知电量计, check 整体 ra"
+            },
+            "auto_debug_code": true,
+            "parameter_list": [],
+            "parameter_desc": [],
+            "vict": {
+                "read": false,
+                "write": {
+                    "cmd": "vict -f {id} -S vic-*",
+                    "desc": {
+                        "zh": "N/A"
+                    }
+                },
+                "overwrite": false
+            }
+        },
+        {
+            "lable": "OPLUS_IC_FUNC_GAUGE_FFC_RA0_CHECK",
+            "desc": {
+                "zh": "通知电量计, ra0"
+            },
+            "auto_debug_code": true,
+            "parameter_list": [],
+            "parameter_desc": [],
+            "vict": {
+                "read": false,
+                "write": {
+                    "cmd": "vict -f {id} -S vic-*",
+                    "desc": {
+                        "zh": "N/A"
+                    }
+                },
+                "overwrite": false
+            }
         }
     ],
 
-    "version": "V6.1:11:62bb2a4abafd34f37d6973d70b379e98a6872be17ac17d9816bc36568b80c895"
+    "version": "V6.2:14:1d12d2c49663e98ce6be372d2ba55ff4f47888e36ee1aa0f6bc6d7df14c1e803"
 }

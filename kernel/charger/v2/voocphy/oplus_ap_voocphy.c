@@ -5234,49 +5234,50 @@ static int oplus_voocphy_ap_event_handle(struct device *dev, unsigned long data)
 	return status;
 }
 
-static void oplus_voocphy_set_chg_pmid2out(bool enable, int reason)
+static void oplus_voocphy_set_chg_pmid2out(struct oplus_voocphy_manager *chip, bool enable, int reason)
 {
 	if (!g_voocphy_chip)
 		return;
 
 	if (g_voocphy_chip->ops && g_voocphy_chip->ops->set_chg_pmid2out) {
-		g_voocphy_chip->ops->set_chg_pmid2out(enable, reason);
+		g_voocphy_chip->ops->set_chg_pmid2out(chip, enable, reason);
 	} else {
 		return;
 	}
 }
 
-static bool oplus_voocphy_get_chg_pmid2out(void)
+static bool oplus_voocphy_get_chg_pmid2out(struct oplus_voocphy_manager *chip)
 {
 	if (!g_voocphy_chip)
 		return false;
 
 	if (g_voocphy_chip->ops && g_voocphy_chip->ops->get_chg_pmid2out) {
-		return g_voocphy_chip->ops->get_chg_pmid2out();
+		return g_voocphy_chip->ops->get_chg_pmid2out(chip);
 	} else {
 		return false;
 	}
 }
 
-static void oplus_voocphy_set_slave_chg_pmid2out(bool enable, int reason)
+static void oplus_voocphy_set_slave_chg_pmid2out(struct oplus_voocphy_manager *chip,
+	bool enable, int reason)
 {
 	if (!g_voocphy_chip)
 		return;
 
 	if (g_voocphy_chip->slave_ops && g_voocphy_chip->slave_ops->set_chg_pmid2out) {
-		g_voocphy_chip->slave_ops->set_chg_pmid2out(enable, reason);
+		g_voocphy_chip->slave_ops->set_chg_pmid2out(chip, enable, reason);
 	} else {
 		return;
 	}
 }
 
-static bool oplus_voocphy_get_slave_chg_pmid2out(void)
+static bool oplus_voocphy_get_slave_chg_pmid2out(struct oplus_voocphy_manager *chip)
 {
 	if (!g_voocphy_chip)
 		return false;
 
 	if (g_voocphy_chip->slave_ops && g_voocphy_chip->slave_ops->get_chg_pmid2out) {
-		return g_voocphy_chip->slave_ops->get_chg_pmid2out();
+		return g_voocphy_chip->slave_ops->get_chg_pmid2out(chip);
 	} else {
 		return false;
 	}
@@ -5404,23 +5405,23 @@ static int oplus_voocphy_curr_event_handle(struct device *dev, unsigned long dat
 		}
 
 		if (chip->chip_id == CHIP_ID_NU2112A) {
-			pmid2out_status = oplus_voocphy_get_chg_pmid2out();
+			pmid2out_status = oplus_voocphy_get_chg_pmid2out(chip);
 			voocphy_err("pmid2out master = %d, chip->master_cp_ichg = %d\n", pmid2out_status, chip->master_cp_ichg);
 			if (pmid2out_status == false && chip->master_cp_ichg > 500) {
 				voocphy_err("IBUS > 500mA set 0x5 !\n");
 				if (chip->adapter_type == ADAPTER_SVOOC)
-					oplus_voocphy_set_chg_pmid2out(true, SETTING_REASON_SVOOC);
+					oplus_voocphy_set_chg_pmid2out(chip, true, SETTING_REASON_SVOOC);
 				else
-					oplus_voocphy_set_chg_pmid2out(true, SETTING_REASON_VOOC);
+					oplus_voocphy_set_chg_pmid2out(chip, true, SETTING_REASON_VOOC);
 			}
-			pmid2out_status = oplus_voocphy_get_slave_chg_pmid2out();
+			pmid2out_status = oplus_voocphy_get_slave_chg_pmid2out(chip);
 			voocphy_err("pmid2out slave = %d, chip->cp_ichg = %d\n", pmid2out_status, chip->cp_ichg);
 			if (pmid2out_status == false && (chip->cp_ichg - chip->master_cp_ichg)> 500) {
 				voocphy_err("slave cp IBUS > 500mA set 0x5 !\n");
 				if (chip->adapter_type == ADAPTER_SVOOC)
-					oplus_voocphy_set_slave_chg_pmid2out(true, SETTING_REASON_SVOOC);
+					oplus_voocphy_set_slave_chg_pmid2out(chip, true, SETTING_REASON_SVOOC);
 				else
-					oplus_voocphy_set_slave_chg_pmid2out(true, SETTING_REASON_VOOC);
+					oplus_voocphy_set_slave_chg_pmid2out(chip, true, SETTING_REASON_VOOC);
 			}
 		}
 	}

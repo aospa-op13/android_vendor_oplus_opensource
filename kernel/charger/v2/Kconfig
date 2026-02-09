@@ -135,6 +135,12 @@ config OPLUS_GAUGE_NFG8011B
 	help
 	  Say Y here to declare GAUGE NFG8011B support
 
+config OPLUS_GAUGE_BQ28Z610_RA
+	bool "GAUGE BQ28Z610 RA support"
+	default n
+	help
+	  Say Y here to declare GAUGE BQ28Z610 RA support
+
 config OPLUS_GAUGE_CW2217B
 	bool "GAUGE CW2217B support"
 	help
@@ -319,6 +325,12 @@ config OPLUS_UFCS_SLAVE_NU2112A
 	help
 	  Say Y here to declare slave cp nu2112A support
 
+config OPLUS_UFCS_MASTER_NU2118A
+	bool "master cp nu2118A support"
+	depends on OPLUS_UFCS_CLASS && OPLUS_CHG_VOOCPHY_CHGLIB && OPLUS_CHG_AP_VOOCPHY
+	help
+	  Say Y here to declare master cp nu2118A support
+
 config OPLUS_CHARGER_OPTIGA
 	bool "OPLUS OPTIGA soc node"
 	help
@@ -344,6 +356,11 @@ config OPLUS_SEC_IC_SC5891
         default n
         help
           Say Y here to declare encryption ic sc5891 support
+
+config OPLUS_DUAL_CELLS_PROTECTION
+	bool "enable dual cells protection support"
+	help
+	  Say Y here to declare dual cells protection support
 
 endif #OPLUS_CHG_VOOCPHY
 
