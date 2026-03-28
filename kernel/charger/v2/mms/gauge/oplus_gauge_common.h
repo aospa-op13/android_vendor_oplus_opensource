@@ -67,6 +67,8 @@ struct oplus_mms_gauge {
 	struct oplus_mms *batt_bal_topic;
 	struct oplus_mms *wls_topic;
 	struct oplus_mms *cpa_topic;
+	struct oplus_mms *ufcs_topic;
+	struct oplus_mms *pps_topic;
 	struct mms_subscribe *comm_subs;
 	struct mms_subscribe *wired_subs;
 	struct mms_subscribe *gauge_subs;
@@ -75,6 +77,8 @@ struct oplus_mms_gauge {
 	struct mms_subscribe *wls_subs;
 	struct mms_subscribe *batt_bal_subs;
 	struct mms_subscribe *cpa_subs;
+	struct mms_subscribe *ufcs_subs;
+	struct mms_subscribe *pps_subs;
 
 	struct delayed_work hal_gauge_init_work;
 	struct delayed_work get_reserve_calib_info_work;
@@ -86,6 +90,7 @@ struct oplus_mms_gauge {
 	struct work_struct offline_handler_work;
 	struct work_struct resume_handler_work;
 	struct work_struct update_change_work;
+	struct work_struct set_fast_sampling_work;
 	struct work_struct gauge_update_work;
 	struct work_struct gauge_set_curve_work;
 	struct work_struct set_gauge_batt_full_work;

@@ -1202,7 +1202,7 @@ static int rt1711_tcpc_deinit(struct tcpc_device *tcpc)
 #endif
 
 	if (chip->chip_id == SC2150A_DID) {
-		mdelay(150);
+		msleep(PD_CCOPEN_TIMER);
 		rt1711_i2c_write8(tcpc, RT1711H_REG_SWRESET, 1);
 	}
 #else

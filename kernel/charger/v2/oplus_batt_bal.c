@@ -3202,16 +3202,6 @@ static void oplus_batt_bal_wls_subs_callback(struct mms_subscribe *subs,
 			}
 			chg_info("charging_enable =%d\n", chip->wls_charging_enable);
 			break;
-		case WLS_ITEM_FASTCHG_STATUS:
-			oplus_mms_get_item_data(chip->wls_topic, id, &data, false);
-			if (chip->wls_fastchg_ing != data.intval) {
-				chip->wls_fastchg_ing = !!data.intval;
-				if (chip->wls_fastchg_ing)
-					queue_work(system_highpri_wq, &chip->batt_bal_disable_bal_work);
-				schedule_work(&chip->update_bal_state_work);
-			}
-			chg_info("wls_fastchg_ing =%d\n", chip->wls_fastchg_ing);
-			break;
 		default:
 			break;
 		}

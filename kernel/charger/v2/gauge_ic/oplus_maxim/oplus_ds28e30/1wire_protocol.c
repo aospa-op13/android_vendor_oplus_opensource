@@ -33,7 +33,7 @@
 #define ONE_WIRE_OUT_HIGH		writel_relaxed(g_onewire_data->onewire_gpio_level_high_val, g_onewire_data->gpio_out_high_reg)
 #define ONE_WIRE_OUT_LOW		writel_relaxed(g_onewire_data->onewire_gpio_level_low_val, g_onewire_data->gpio_out_low_reg)
 
-/* #define WIRE_TIMEING_DEBUG */		/* if defined, then print 1-wire timing variants to the log file */
+/* #define WIRE_TIMEING_DEBUG */ 	/* if defined, then print 1-wire timing variants to the log file */
 static struct onewire_gpio_data *g_onewire_data;
 
 int write_get_pin(void);
@@ -130,10 +130,11 @@ void write_bit(unsigned char bitval)
 		ONE_WIRE_OUT_LOW;			/* Output Low '0' */
 		w_start_ns = get_current_time();
 		ONE_WIRE_OUT_LOW;			/* Output Low '0' */
-		for (i = 0; i < 30; i++) {
+		for (i = 0; i < DELAY_CHECK_NUM; i++) {
 			w_end_ns = get_current_time();
 			w_diff_ns = w_end_ns.tv_nsec - w_start_ns.tv_nsec;
-			if (w_diff_ns >= 500) break;
+			if (w_diff_ns >= DELAY_WRITE_BIT_OUT_LOW)
+				break;
 		}
 		/* delay_ns(g_onewire_data->write_begin_low_level_time); */
 		if (bitval != 0) {
@@ -175,19 +176,20 @@ unsigned char read_bit(void)
 	unsigned char i;
 	struct timespec r_start_ns;
 	struct timespec r_end_ns;
-	long r_diff_ns, r_diff_ns_1;
+	long r_diff_ns;
+	long r_diff_ns_1;
 
 	ONE_WIRE_CONFIG_OUT;
 	if (g_onewire_data->maxim_romid_crc_support) {
 		/* Execute output '0' 5 times*/
 		ONE_WIRE_OUT_HIGH;
-		ONE_WIRE_OUT_LOW;		/* output low '0' */
+		ONE_WIRE_OUT_LOW;	/* output low '0' */
 		r_start_ns = get_current_time();
-		for (i = 0; i < 30; i++) {
-			/* ONE_WIRE_OUT_LOW; */
+		for (i = 0; i < DELAY_CHECK_NUM; i++) {
 			r_end_ns = get_current_time();
 			r_diff_ns_1 = r_end_ns.tv_nsec - r_start_ns.tv_nsec;
-			if (r_diff_ns_1 >= 300) break;
+			if (r_diff_ns_1 >= DELAY_READ_BIT_OUT_LOW)
+				break;
 		}
 		/* set 1-wire as input */
 		ONE_WIRE_CONFIG_IN;
@@ -195,7 +197,8 @@ unsigned char read_bit(void)
 			value = readl_relaxed(g_onewire_data->gpio_in_reg);
 			value = (value >> g_onewire_data->gpio_addr_offset) & 0x1;
 			vamm += value;
-			if (i == 1) r_end_ns = get_current_time();
+			if (i == 1)
+				r_end_ns = get_current_time();
 		}
 		r_diff_ns = r_end_ns.tv_nsec - r_start_ns.tv_nsec;
 #ifdef WIRE_TIMEING_DEBUG

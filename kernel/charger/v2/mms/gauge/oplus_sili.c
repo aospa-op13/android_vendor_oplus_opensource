@@ -3599,6 +3599,7 @@ static int oplus_mms_gauge_push_soh_coeff(struct oplus_mms_gauge *chip, int coef
 }
 
 #define DEEP_DISCHG_UPDATE_VOLT_DELTA 100
+
 int oplus_gauge_term_voltage_vote_callback(struct votable *votable, void *data, int volt, const char *client,
 						  bool step)
 {

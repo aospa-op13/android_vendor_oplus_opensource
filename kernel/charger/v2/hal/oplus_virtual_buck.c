@@ -2381,7 +2381,7 @@ static int oplus_chg_vb_shipmod_enable(struct oplus_chg_ic_dev *ic_dev, bool en)
 		chg_err("oplus_chg_ic_dev is NULL");
 		return -ENODEV;
 	}
-
+	chg_info("shipmode:%d\n", en);
 	vb = oplus_chg_ic_get_drvdata(ic_dev);
 	if (gpio_is_valid(vb->misc_gpio.ship_gpio)) {
 		chg_info("select gpio ship mode control\n");
@@ -2405,10 +2405,11 @@ static int oplus_chg_vb_shipmod_enable(struct oplus_chg_ic_dev *ic_dev, bool en)
 			vb->child_list[i].ic_dev,
 			OPLUS_IC_FUNC_BUCK_SHIPMODE_ENABLE,
 			en);
+
 		if (rc < 0)
 			chg_err("child ic[%d] %s shipmod error, rc=%d\n", i, en ? "enable" : "disable", rc);
 		else
-			return 0;
+			chg_info("child ic[%d] %s shipmod success, rc=%d\n", i, en ? "enable" : "disable", rc);
 	}
 
 	return rc;
@@ -3974,6 +3975,37 @@ static int oplus_chg_vb_get_usb_btb_temp(struct oplus_chg_ic_dev *ic_dev,
 	return rc;
 }
 
+static int oplus_chg_vb_get_vbat_pwr(struct oplus_chg_ic_dev *ic_dev,
+					  int *vbat_pwr)
+{
+	struct oplus_virtual_buck_ic *vb;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+	vb = oplus_chg_ic_get_drvdata(ic_dev);
+
+	for (i = 0; i < vb->child_num; i++) {
+		if (!func_is_support(&vb->child_list[i],
+				     OPLUS_IC_FUNC_BUCK_GET_VBAT_PWR)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(vb->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_BUCK_GET_VBAT_PWR,
+				       vbat_pwr);
+		if (rc < 0)
+			chg_err("child ic[%d] can't get vbat pwr, rc=%d\n",
+				i, rc);
+		break;
+	}
+
+	return rc;
+}
+
 static int oplus_chg_vb_get_batt_btb_temp(struct oplus_chg_ic_dev *ic_dev,
 					  int *batt_btb_temp)
 {
@@ -4663,6 +4695,76 @@ static int oplus_chg_vb_iterm_check(struct oplus_chg_ic_dev *ic_dev, bool check)
 	return 0;
 }
 
+int oplus_chg_vb_set_adsp_ovp(struct oplus_chg_ic_dev *ic_dev, bool enable)
+{
+	struct oplus_virtual_buck_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (chip == NULL) {
+		chg_err("feature chip is NULL\n");
+		return -ENODEV;
+	}
+	if (chip->child_list == NULL) {
+		chg_err("child_list is NULL\n");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i], OPLUS_IC_FUNC_BUCK_SET_OVP_FORCED)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(
+			chip->child_list[i].ic_dev,
+			OPLUS_IC_FUNC_BUCK_SET_OVP_FORCED,
+			enable);
+		if (rc < 0)
+			chg_err("child ic[%d] set OVP forced to %d error, rc=%d\n", i, enable, rc);
+		else
+			return 0;
+	}
+
+	return rc;
+}
+
+static int oplus_set_usb_dpdm_ovp_disable(struct oplus_chg_ic_dev *ic_dev, bool disable)
+{
+	struct oplus_virtual_buck_ic *vb;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	vb = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!vb || !vb->child_list) {
+		chg_err("vb or child_list is NULL");
+		return -ENODEV;
+	}
+
+	for (i = 0; i < vb->child_num; i++) {
+		if (!func_is_support(&vb->child_list[i], OPLUS_IC_FUNC_BUCK_SET_DPDM_OVP_DISABLE)) {
+			rc = -ENOTSUPP;
+			continue;
+		}
+		rc = oplus_chg_ic_func(vb->child_list[i].ic_dev, OPLUS_IC_FUNC_BUCK_SET_DPDM_OVP_DISABLE, disable);
+		if (rc < 0)
+			chg_err("child ic[%d] OPLUS_IC_FUNC_BUCK_SET_DPDM_OVP_DISABLE error, rc=%d\n", i, rc);
+		else
+			return 0;
+	}
+	return rc;
+}
+
 static void *oplus_chg_vb_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_chg_ic_func func_id)
 {
 	void *func = NULL;
@@ -4891,6 +4993,10 @@ static void *oplus_chg_vb_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_c
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_BATT_BTB_TEMP,
 					       oplus_chg_vb_get_batt_btb_temp);
 		break;
+	case OPLUS_IC_FUNC_BUCK_GET_VBAT_PWR:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_VBAT_PWR,
+					       oplus_chg_vb_get_vbat_pwr);
+		break;
 	case OPLUS_IC_FUNC_BUCK_GET_FV:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_FV, oplus_chg_vb_get_fv);
 		break;
@@ -4957,6 +5063,12 @@ static void *oplus_chg_vb_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_c
 		break;
 	case OPLUS_IC_FUNC_BUCK_GET_POWER_ROLE:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_POWER_ROLE, oplus_chg_vb_get_power_role);
+		break;
+	case OPLUS_IC_FUNC_BUCK_SET_OVP_FORCED:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_SET_OVP_FORCED, oplus_chg_vb_set_adsp_ovp);
+		break;
+	case OPLUS_IC_FUNC_BUCK_SET_DPDM_OVP_DISABLE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_SET_DPDM_OVP_DISABLE, oplus_set_usb_dpdm_ovp_disable);
 		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);

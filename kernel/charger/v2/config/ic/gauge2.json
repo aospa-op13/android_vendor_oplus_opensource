@@ -318,6 +318,57 @@
             }
         },
         {
+            "lable": "OPLUS_IC_FUNC_GAUGE_SET_FAST_SAMPLING",
+            "desc": {
+                "zh": "设置电量计电压电流等参数快速采样功能使能与否"
+            },
+            "auto_debug_code": true,
+            "parameter_list": ["bool"],
+            "parameter_desc": [
+                {
+                    "range": "0-1",
+                    "type": "in",
+                    "desc": {
+                        "zh": "0:不使能, 1:使能"
+                    }
+                }
+            ],
+            "vict": {
+                "read": false,
+                "write": {
+                    "cmd": "vict -f {id} -S{val} vic-*",
+                    "desc": {
+                        "zh": "N/A"
+                    }
+                },
+                "overwrite": {
+                    "cmd": "vict -f {id} -O {val} vic-*",
+                    "desc": {
+                        "zh": "N/A"
+                    }
+                }
+            }
+        },
+        {
+            "lable": "OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL",
+            "desc": {
+                "zh": "通知电量计, 去检查电池阻抗模型参数"
+            },
+            "auto_debug_code": true,
+            "parameter_list": [],
+            "parameter_desc": [],
+            "vict": {
+                "read": false,
+                "write": {
+                    "cmd": "vict -f {id} -S vic-*",
+                    "desc": {
+                        "zh": "N/A"
+                    }
+                },
+                "overwrite": false
+            }
+        },
+        {
             "lable": "OPLUS_IC_FUNC_GAUGE_FCC_VDELTA_CHECK",
             "desc": {
                 "zh": "通知电量计, check delta volt"
@@ -389,5 +440,5 @@
         }
     ],
 
-    "version": "V6.2:14:1d12d2c49663e98ce6be372d2ba55ff4f47888e36ee1aa0f6bc6d7df14c1e803"
+    "version": "V6.4:16:a4afdb37e034f45b36dcf72f7793a307fb02305fd37b41550ba17f8c6ff7fda3"
 }
