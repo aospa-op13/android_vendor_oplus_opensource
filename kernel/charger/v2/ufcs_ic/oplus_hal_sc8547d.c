@@ -115,6 +115,7 @@ struct sc8547d_device {
 	struct work_struct otg_enabled_work;
 	struct work_struct ic_offline_work;
 	struct delayed_work track_cp_switching_work;
+	struct delayed_work cp_err_regdump_work;
 	u8 ufcs_reg_dump[SC8547D_FLAG_NUM];
 	int cp_reg_track[SC8547D_TRACK_NUM];
 };
@@ -871,7 +872,47 @@ static int sc8547_voocphy_get_voocphy_enable(
 
 static void sc8547_voocphy_dump_reg_in_err_issue(struct oplus_voocphy_manager *voocphy)
 {
-	return;
+	struct sc8547d_device *chip;
+
+	if (!voocphy)
+		return;
+	chip = voocphy->priv_data;
+	if (!chip)
+		return;
+
+	schedule_delayed_work(&chip->cp_err_regdump_work, 0);
+}
+
+
+static void sc8547d_err_regdump_work(struct work_struct *work)
+{
+	struct sc8547d_device *chip =
+		container_of(to_delayed_work(work), struct sc8547d_device, cp_err_regdump_work);
+	char *buf;
+	u8 addr;
+	u8 val;
+	int idx = 0;
+	int ret;
+
+	if (!chip)
+		return;
+
+	buf = kzalloc(PAGE_SIZE, GFP_KERNEL);
+	if (!buf)
+		return;
+
+	idx += scnprintf(buf + idx, PAGE_SIZE - idx, "sc8547:\n");
+	for (addr = 0x0; addr <= 0x3C && idx < PAGE_SIZE - 1; addr++) {
+		if ((addr < 0x24) || (addr > 0x2B && addr < 0x33) ||
+		    addr == 0x36 || addr == 0x3C) {
+			ret = sc8547_read_byte(chip->client, addr, &val);
+			if (ret == 0)
+				idx += scnprintf(buf + idx, PAGE_SIZE - idx,
+					"Reg[%.2X] = 0x%.2x\n", addr, val);
+		}
+	}
+	chg_err("reg_dump %s\n", buf);
+	kfree(buf);
 }
 
 static int sc8547_voocphy_get_adc_enable(struct oplus_voocphy_manager *chip, u8 *data)
@@ -3770,6 +3811,7 @@ static int sc8547d_driver_probe(struct i2c_client *client,
 	INIT_WORK(&chip->otg_enabled_work, sc8547d_otg_enabled_work);
 	INIT_WORK(&chip->ic_offline_work, sc8547d_ic_offline_work);
 	INIT_DELAYED_WORK(&chip->track_cp_switching_work, sc8547d_track_cp_switching_work);
+	INIT_DELAYED_WORK(&chip->cp_err_regdump_work, sc8547d_err_regdump_work);
 
 	rc = sc8547d_parse_dt(chip);
 	if (rc < 0)

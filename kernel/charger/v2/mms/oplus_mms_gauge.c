@@ -2693,7 +2693,7 @@ static void oplus_mms_gauge_init_work(struct work_struct *work)
 	struct delayed_work *dwork = to_delayed_work(work);
 	struct oplus_mms_gauge *chip = container_of(dwork,
 		struct oplus_mms_gauge, hal_gauge_init_work);
-	struct device_node *node = chip->dev->of_node;
+	struct device_node *node = oplus_get_node_by_child_gauge(chip->dev->of_node);
 	struct device_node *level_shift_node = NULL;
 	static int retry = OPLUS_CHG_IC_INIT_RETRY_MAX;
 	int rc;
@@ -3199,6 +3199,86 @@ static void oplus_gauge_cuv_state_work(struct work_struct *work)
 	}
 }
 
+#define FFC_CHECK_BATT_IMP_DELAY	2500
+static bool wired_charging_disable_votable_available(
+	struct oplus_mms_gauge *chip)
+{
+	if (!chip->wired_charging_disable_votable)
+		chip->wired_charging_disable_votable =
+			find_votable("WIRED_CHARGING_DISABLE");
+	return !!chip->wired_charging_disable_votable;
+}
+
+static void oplus_mms_gauge_check_imp_model(struct oplus_mms *mms)
+{
+	int rc = 0;
+	int i;
+	struct oplus_mms_gauge *chip;
+	struct oplus_chg_ic_dev *ic;
+
+	if (mms == NULL) {
+		chg_err("mms is NULL");
+		return;
+	}
+
+	chip = oplus_mms_get_drvdata(mms);
+	if (mms == chip->gauge_topic) {
+		for (i = 0; i < chip->child_num; i++) {
+			ic = chip->child_list[i].ic_dev;
+			rc = oplus_chg_ic_func(ic, OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL);
+			if (rc < 0 && rc != -ENOTSUPP) {
+				chg_err("gauge[%d](%s): can't check imp model, rc=%d\n",
+					i, ic->manu_name, rc);
+				continue;
+			}
+		}
+	} else {
+		for (i = 0; i < chip->child_num; i++) {
+			if (mms != chip->gauge_topic_parallel[i])
+				continue;
+			ic = chip->gauge_ic_comb[i];
+			rc = oplus_chg_ic_func(ic, OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL);
+			if (rc < 0 && rc != -ENOTSUPP)
+				chg_err("gauge[%d](%s): can't check imp model, rc=%d\n",
+					i, ic->manu_name, rc);
+			return;
+		}
+	}
+}
+
+static void oplus_mms_gauge_check_imp_model_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_mms_gauge *chip = container_of(dwork, struct oplus_mms_gauge,
+				check_imp_model_work);
+	union mms_msg_data data = { 0 };
+	int rc;
+	bool led_on = true;
+	int real_type = OPLUS_CHG_USB_TYPE_UNKNOWN;
+	int chg_disable = false;
+
+	rc = oplus_mms_get_item_data(chip->comm_topic, COMM_ITEM_LED_ON, &data, false);
+	if (!rc)
+		led_on = data.intval;
+
+	rc = oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_REAL_CHG_TYPE, &data, false);
+	if (!rc)
+		real_type = data.intval;
+
+	if (wired_charging_disable_votable_available(chip))
+		chg_disable = get_effective_result(chip->wired_charging_disable_votable);
+
+	chg_info("online= %d, led_on = %d, chg_disable = %d, real_type = %d\n",
+		chip->wired_online, led_on, chg_disable, real_type);
+	if (chip->wired_online && !led_on && chg_disable &&
+	   (real_type != OPLUS_CHG_USB_TYPE_UNKNOWN &&
+	    real_type != OPLUS_CHG_USB_TYPE_SDP && real_type != OPLUS_CHG_USB_TYPE_CDP)) {
+		chg_info("check battery imp model done\n");
+		chip->check_imp_model_done = true;
+		oplus_mms_gauge_check_imp_model(chip->gauge_topic);
+	}
+}
+
 static int oplus_mms_gauge_virq_register(struct oplus_mms_gauge *chip)
 {
 	int i, rc;
@@ -3429,8 +3509,10 @@ static int oplus_mms_sub_gauge_update_cc(
 
 static bool is_voocphy_ic_available(struct oplus_mms_gauge *chip)
 {
+	struct device_node *node = oplus_get_node_by_child_gauge(chip->dev->of_node);
+
 	if (!chip->voocphy_ic)
-		chip->voocphy_ic = of_get_oplus_chg_ic(chip->dev->of_node,
+		chip->voocphy_ic = of_get_oplus_chg_ic(node,
 						       "oplus,voocphy_ic", 0);
 
 	return !!chip->voocphy_ic;
@@ -5376,6 +5458,17 @@ static void oplus_mms_gauge_comm_subs_callback(struct mms_subscribe *subs,
 		case COMM_ITEM_CHG_FULL:
 			schedule_work(&chip->set_gauge_batt_full_work);
 			break;
+		case COMM_ITEM_BATT_CV_FULL:
+			oplus_mms_get_item_data(chip->comm_topic, id, &data, false);
+			if (!!data.intval && !chip->check_imp_model_done)
+				schedule_delayed_work(&chip->check_imp_model_work, 0);
+			if (!!data.intval && chip->wired_online) {
+				chip->fcc_ra_cv = true;
+				schedule_delayed_work(&chip->gauge_fcc_vdelta_work, 0);
+				schedule_delayed_work(&chip->gauge_fcc_ra0_work, 0);
+				schedule_delayed_work(&chip->gauge_fcc_t_ra_work, 0);
+			}
+			break;
 		case COMM_ITEM_UI_SOC:
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
@@ -5393,6 +5486,18 @@ static void oplus_mms_gauge_comm_subs_callback(struct mms_subscribe *subs,
 			break;
 		case COMM_ITEM_BOOT_COMPLETED:
 			oplus_mms_gauge_get_reserve_calib_info(chip);
+			break;
+		case COMM_ITEM_FFC_STATUS:
+			oplus_mms_get_item_data(chip->comm_topic, id, &data, false);
+			if (data.intval == FFC_WAIT && !chip->check_imp_model_done)
+				schedule_delayed_work(&chip->check_imp_model_work,
+					msecs_to_jiffies(FFC_CHECK_BATT_IMP_DELAY));
+			if (data.intval == FFC_WAIT && chip->wired_online) {
+				chip->fcc_ra_cv = true;
+				schedule_delayed_work(&chip->gauge_fcc_vdelta_work, 0);
+				schedule_delayed_work(&chip->gauge_fcc_ra0_work, msecs_to_jiffies(FFC_CHECK_BATT_RA0_DELAY));
+				schedule_delayed_work(&chip->gauge_fcc_t_ra_work, msecs_to_jiffies(FFC_CHECK_BATT_T_RA_DELAY));
+			}
 			break;
 		default:
 			break;
@@ -5545,6 +5650,13 @@ static void oplus_mms_gauge_wired_subs_callback(struct mms_subscribe *subs,
 			chip->wired_online = data.intval;
 			schedule_work(&chip->update_change_work);
 			oplus_gauge_deep_dischg_check(chip);
+			if (!chip->wired_online) {
+				chip->check_imp_model_done = false;
+				cancel_delayed_work(&chip->check_imp_model_work);
+				chip->fcc_ra_cv = false;
+				cancel_delayed_work(&chip->gauge_fcc_ra0_work);
+				cancel_delayed_work(&chip->gauge_fcc_t_ra_work);
+			}
 			break;
 		case WIRED_ITEM_CHG_TYPE:
 			if (chip->wired_online && is_voocphy_ic_available(chip))
@@ -6640,6 +6752,8 @@ static int oplus_mms_gauge_probe(struct platform_device *pdev)
 		oplus_gauge_read_stress_test_work);
 	INIT_DELAYED_WORK(&chip->gauge_term_volt_stress_test_work,
 		oplus_gauge_term_volt_stress_test_work);
+	INIT_DELAYED_WORK(&chip->check_imp_model_work,
+		  oplus_mms_gauge_check_imp_model_work);
 	INIT_DELAYED_WORK(&chip->gauge_fcc_vdelta_work, oplus_gauge_fcc_vdelta_work);
 	INIT_DELAYED_WORK(&chip->gauge_fcc_ra0_work, oplus_gauge_fcc_ra0_work);
 	INIT_DELAYED_WORK(&chip->gauge_fcc_t_ra_work, oplus_gauge_fcc_t_ra_work);

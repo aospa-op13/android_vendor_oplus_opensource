@@ -167,12 +167,6 @@ enum dec_cv_support_type {
 	DEC_CV_SUPPORT_MAX,
 };
 
-enum power_role_type {
-	POWER_ROLE_UNKNOWN = -1,
-	POWER_ROLE_SINK = 0,
-	POWER_ROLE_SOURCE = 1,
-};
-
 enum bdd_voltdiff_trend {
 	BDD_VOLT_DIFF_TREND_NONE,
 	BDD_VOLT_DIFF_TREND_START,
@@ -436,6 +430,7 @@ struct oplus_chg_comm {
 	bool hw_sub_batt_full_by_sw;
 	bool batt_full;
 	bool sub_batt_full;
+	bool batt_cv_full;
 	bool authenticate;
 	bool hmac;
 	bool gauge_remuse;
@@ -1342,10 +1337,43 @@ static void oplus_comm_set_rechging(struct oplus_chg_comm *chip, bool rechging)
 	}
 }
 
+static void oplus_comm_set_batt_cv_full(struct oplus_chg_comm *chip)
+{
+	bool batt_cv_full;
+	struct mms_msg *msg;
+	int rc;
+
+	if (chip->sw_full || chip->hw_full_by_sw)
+		batt_cv_full = true;
+	else
+		batt_cv_full = false;
+
+	if (chip->batt_cv_full == batt_cv_full)
+		return;
+
+	chip->batt_cv_full = batt_cv_full;
+
+	msg = oplus_mms_alloc_msg(MSG_TYPE_ITEM, MSG_PRIO_HIGH,
+				  COMM_ITEM_BATT_CV_FULL);
+	if (msg == NULL) {
+		chg_err("alloc msg error\n");
+		return;
+	}
+	rc = oplus_mms_publish_msg(chip->comm_topic, msg);
+	if (rc < 0) {
+		chg_err("publish battery cv full msg error, rc=%d\n", rc);
+		kfree(msg);
+	}
+
+	chg_info("batt_cv_full=%s\n", batt_cv_full ? "true" : "false");
+}
+
 static void oplus_comm_set_batt_full(struct oplus_chg_comm *chip, bool full)
 {
 	struct mms_msg *msg;
 	int rc;
+
+	oplus_comm_set_batt_cv_full(chip);
 
 	full |= chip->sw_full || chip->hw_full_by_sw;
 
@@ -4265,9 +4293,10 @@ static void oplus_chg_kpoc_power_off_check(struct oplus_chg_comm *chip)
 				vbus_mv = oplus_wired_get_vbus();
 				oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_ONLINE, &data, true);
 				wired_online = data.intval;
-				if (!wired_online && vbus_mv < POWER_OFF_VBUS_CHECK) {
-					chg_info("Schedule power off check work after 7s\n");
-					schedule_delayed_work(&chip->power_off_check_work, msecs_to_jiffies(7000));
+				if (!wired_online && vbus_mv < POWER_OFF_VBUS_CHECK &&
+					(!chip->vooc_online && !chip->vooc_online_keep))
+					chg_info("Schedule power off check work after 57s\n");
+					schedule_delayed_work(&chip->power_off_check_work, msecs_to_jiffies(57000));
 				}
 			}
 		} else {
@@ -7458,6 +7487,26 @@ static int oplus_comm_update_chg_sub_batt_full(struct oplus_mms *mms,
 	return 0;
 }
 
+static int oplus_comm_update_batt_cv_full(struct oplus_mms *mms,
+				       union mms_msg_data *data)
+{
+	struct oplus_chg_comm *chip;
+
+	if (mms == NULL) {
+		chg_err("mms is NULL");
+		return -EINVAL;
+	}
+	if (data == NULL) {
+		chg_err("data is NULL");
+		return -EINVAL;
+	}
+	chip = oplus_mms_get_drvdata(mms);
+
+	data->intval = chip->batt_cv_full;
+
+	return 0;
+}
+
 static int oplus_comm_update_ffc_status(struct oplus_mms *mms,
 				       union mms_msg_data *data)
 {
@@ -8054,7 +8103,6 @@ static int oplus_comm_wired_update_flash_mode(struct oplus_mms *mms, union mms_m
 
 	return 0;
 }
-
 static struct mms_item oplus_comm_item[] = {
 	{
 		.desc = {
@@ -8400,6 +8448,16 @@ static struct mms_item oplus_comm_item[] = {
 			.down_thr_enable = false,
 			.dead_thr_enable = false,
 			.update = oplus_comm_wired_update_flash_mode,
+		}
+	},
+	{
+		.desc = {
+			.item_id = COMM_ITEM_BATT_CV_FULL,
+			.str_data = false,
+			.up_thr_enable = false,
+			.down_thr_enable = false,
+			.dead_thr_enable = false,
+			.update = oplus_comm_update_batt_cv_full,
 		}
 	}
 };

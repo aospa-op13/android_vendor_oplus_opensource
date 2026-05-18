@@ -70,6 +70,7 @@
 
 #include "oplus_hal_bq27541.h"
 #include "oplus_hal_nfg8011b.h"
+#include "oplus_hal_sh366002.h"
 #include "oplus_hal_bq28z610.h"
 #include <oplus_chg_monitor.h>
 #include "../monitor/oplus_chg_track.h"
@@ -5884,7 +5885,7 @@ static void bq28z610_modify_dod0_parameter(struct chip_bq27541 *chip)
 		usleep_range(1000, 1000);
 		bq8z610_seal(chip);
 	}
-	
+
 	if (rc < 0)
 		chg_err("read i2c err\n");
 
@@ -9961,6 +9962,33 @@ static int oplus_bq27541_set_fast_sampling(
 	return ret;
 }
 
+static void bq27541_imp_model_check_work(struct work_struct *work)
+{
+	struct chip_bq27541 *chip = container_of(
+		work, struct chip_bq27541, imp_model_check_work);
+
+	if (chip->device_type == DEVICE_ZY0602)
+		oplus_sh36002_check_imp_model(chip);
+}
+
+static int oplus_bq27541_check_imp_model(struct oplus_chg_ic_dev *ic_dev)
+{
+	struct chip_bq27541 *chip;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (chip == NULL || is_return_pre_value(chip))
+		return -EINVAL;
+
+	schedule_work(&chip->imp_model_check_work);
+
+	return 0;
+}
+
 static void *oplus_chg_get_func(struct oplus_chg_ic_dev *ic_dev,
 				enum oplus_chg_ic_func func_id)
 {
@@ -10378,6 +10406,10 @@ static void *oplus_chg_get_func(struct oplus_chg_ic_dev *ic_dev,
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_FAST_SAMPLING,
 			oplus_bq27541_set_fast_sampling);
 		break;
+	case OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL,
+			oplus_bq27541_check_imp_model);
+		break;
 	case OPLUS_IC_FUNC_GAUGE_FCC_VDELTA_CHECK:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_FCC_VDELTA_CHECK,
 			oplus_bq27541_vdelta_check);
@@ -10515,6 +10547,7 @@ static int bq27541_driver_probe(struct i2c_client *client,
 	int ic_index;
 	struct oplus_chg_ic_cfg ic_cfg = { 0 };
 	int rc = 0;
+	struct device_node *node = NULL;
 
 	if (bq27541_need_level_shift(client->dev.of_node) &&
 	    !is_level_shift_available(client->dev.of_node)) {
@@ -10543,6 +10576,7 @@ static int bq27541_driver_probe(struct i2c_client *client,
 	mutex_init(&fg_ic->chip_mutex);
 	mutex_init(&fg_ic->calib_time_mutex);
 	mutex_init(&fg_ic->bq28z610_alt_manufacturer_access);
+	mutex_init(&fg_ic->imp_model_lock);
 	bq27541_parse_dt(fg_ic);
 	bq28z610_parse_fcc_ra_dt(fg_ic);
 	bq27541_create_device_node(&(client->dev));
@@ -10566,6 +10600,7 @@ rerun:
 	schedule_delayed_work(&fg_ic->hw_config, 0);
 */
 	INIT_WORK(&fg_ic->fcc_too_small_check_work, bq27541_fcc_too_small_check_work);
+	INIT_WORK(&fg_ic->imp_model_check_work, bq27541_imp_model_check_work);
 	INIT_DELAYED_WORK(&fg_ic->check_iic_recover, bq27541_check_iic_recover);
 	INIT_DELAYED_WORK(&fg_ic->track_fcc_ra0_work, bq27541_track_fcc_ra0_work);
 	INIT_DELAYED_WORK(&fg_ic->track_fcc_vdelta_work, bq27541_track_fcc_vdelta_work);
@@ -10639,13 +10674,14 @@ rerun:
 	atomic_set(&fg_ic->locked, 0);
 	bq28z610_afi_param_update(fg_ic);
 	bq28z610_fcc_vdelta_init(fg_ic);
-	rc = of_property_read_u32(fg_ic->dev->of_node, "oplus,ic_type",
+	node = oplus_get_node_by_child_gauge(fg_ic->dev->of_node);
+	rc = of_property_read_u32(node, "oplus,ic_type",
 				  &ic_type);
 	if (rc < 0) {
 		chg_err("can't get ic type, rc=%d\n", rc);
 		goto error;
 	}
-	rc = of_property_read_u32(fg_ic->dev->of_node, "oplus,ic_index",
+	rc = of_property_read_u32(node, "oplus,ic_index",
 				  &ic_index);
 	if (rc < 0) {
 		chg_err("can't get ic index, rc=%d\n", rc);

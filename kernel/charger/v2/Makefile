@@ -71,6 +71,7 @@ oplus_chg_v2-$(CONFIG_OPLUS_GAUGE_BQ27Z561) += gauge_ic/oplus_hal_bq27z561.o
 oplus_chg_v2-$(CONFIG_OPLUS_GAUGE_NFG8011B) += gauge_ic/oplus_hal_nfg8011b.o
 oplus_chg_v2-$(CONFIG_OPLUS_GAUGE_CW2217B) += gauge_ic/oplus_hal_cw2217b.o
 oplus_chg_v2-$(CONFIG_OPLUS_GAUGE_SN28Z729) += gauge_ic/oplus_hal_sn28z729.o
+oplus_chg_v2-$(CONFIG_OPLUS_GAUGE_SH366002) += gauge_ic/oplus_hal_sh366002.o
 oplus_chg_v2-$(CONFIG_OPLUS_GAUGE_BQ28Z610_RA) += gauge_ic/oplus_hal_bq28z610.o
 
 oplus_chg_v2-y += vooc_ic/oplus_hal_rk826.o

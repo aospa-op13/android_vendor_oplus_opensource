@@ -2905,7 +2905,6 @@ static int oplus_chg_vg_set_batt_deep_dischg_count(struct oplus_chg_ic_dev *ic_d
 }
 
 static int oplus_chg_vg_set_batt_deep_term_volt(struct oplus_chg_ic_dev *ic_dev, int volt)
-
 {
 	struct oplus_virtual_gauge_ic *chip;
 	int i;
@@ -4227,6 +4226,34 @@ static int oplus_chg_vg_mtk_sync_plugin(struct oplus_chg_ic_dev *ic_dev)
 	return rc;
 }
 
+static int oplus_chg_vg_check_imp_model(struct oplus_chg_ic_dev *ic_dev)
+{
+	struct oplus_virtual_gauge_ic *chip;
+	int i;
+	int rc = 0;
+
+	if (ic_dev == NULL) {
+		chg_err("oplus_chg_ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	for (i = 0; i < chip->child_num; i++) {
+		if (!func_is_support(&chip->child_list[i],
+				     OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL)) {
+			rc = (rc == 0) ? -ENOTSUPP : rc;
+			continue;
+		}
+		rc = oplus_chg_ic_func(chip->child_list[i].ic_dev,
+				       OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL);
+		if (rc < 0)
+			chg_err("child ic[%d] gauge error, rc=%d\n", i, rc);
+		break;
+	}
+
+	return rc;
+}
+
 static int oplus_chg_vg_vdelta_check(struct oplus_chg_ic_dev *ic_dev, bool ra_cv)
 {
 	struct oplus_virtual_gauge_ic *chip;
@@ -4828,6 +4855,10 @@ static void *oplus_chg_vg_get_func(struct oplus_chg_ic_dev *ic_dev,
 	case OPLUS_IC_FUNC_GAUGE_SET_FAST_SAMPLING:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_SET_FAST_SAMPLING,
 			oplus_chg_vg_set_fast_sampling);
+		break;
+	case OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_CHECK_IMP_MODEL,
+			oplus_chg_vg_check_imp_model);
 		break;
 	case OPLUS_IC_FUNC_GAUGE_FCC_VDELTA_CHECK:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_GAUGE_FCC_VDELTA_CHECK,

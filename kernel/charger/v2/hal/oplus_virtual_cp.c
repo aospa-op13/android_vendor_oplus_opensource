@@ -30,6 +30,7 @@
 #include <oplus_chg_ic.h>
 #include <oplus_mms.h>
 #include <oplus_mms_wired.h>
+#include <oplus_mms_gauge.h>
 
 #define CP_REG_TIMEOUT_MS	120000
 #define PROC_DATA_BUF_SIZE	256
@@ -175,6 +176,7 @@ static struct oplus_cp_strategy *obc_strategy_alloc(
 	int rc;
 	int i;
 
+	node = oplus_get_node_by_child_gauge(node);
 	if (node == NULL) {
 		chg_err("device node is NULL\n");
 		return NULL;
@@ -372,7 +374,7 @@ static struct oplus_cp_strategy_desc g_strategy_desc[] = {
 
 static struct oplus_cp_strategy *oplus_vc_strategy_alloc(struct oplus_virtual_cp_ic *cp)
 {
-	struct device_node *node = cp->dev->of_node;
+	struct device_node *node = oplus_get_node_by_child_gauge(cp->dev->of_node);
 	struct device_node *strategy_node;
 	enum oplus_cp_strategy_type type;
 	struct oplus_cp_strategy_desc *desc = NULL;
@@ -502,6 +504,7 @@ static struct device_node *oplus_vc_find_ic_root_node(struct device_node *root, 
 	int rc;
 	int i;
 
+	root = oplus_get_node_by_child_gauge(root);
 	rc = of_property_count_elems_of_size(root, "oplus,cp_ic", sizeof(u32));
 	if (rc < 0) {
 		chg_err("can't get cp ic number, rc=%d\n", rc);
@@ -722,7 +725,7 @@ static void oplus_vc_child_reg_callback(struct oplus_chg_ic_dev *ic, void *data,
 
 static int oplus_vc_child_init(struct oplus_virtual_cp_ic *chip)
 {
-	struct device_node *node = chip->dev->of_node;
+	struct device_node *node = oplus_get_node_by_child_gauge(chip->dev->of_node);
 	int i = 0;
 	int rc = 0;
 	const char *name;
@@ -1921,6 +1924,9 @@ static void oplus_vc_work_status_monitor(struct oplus_virtual_cp_ic *vc)
 		set_bit(i, &vc->pre_open_flag);
 		vc->open_flag_change_count = 0;
 		chg_err("[%s]: abnormal close\n", ic_dev->manu_name);
+		rc = oplus_chg_ic_func(ic_dev, OPLUS_IC_FUNC_REG_DUMP);
+		if (rc < 0 && rc != -ENOTSUPP)
+			chg_err("cp[%s] reg dump error, rc=%d\n", ic_dev->manu_name, rc);
 		oplus_chg_ic_func(ic_dev, OPLUS_IC_FUNC_EXIT);
 	}
 

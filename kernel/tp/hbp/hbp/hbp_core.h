@@ -379,13 +379,6 @@ struct hbp_core {
 
 	bool in_hbp_mode;
 	struct exception_data    exception_data; /*exception_data monitor data*/
-
-	/* workqueue for state notify */
-	struct workqueue_struct *state_notify_wq;
-	struct work_struct state_notify_work;
-	struct mutex state_notify_mtx;  /* protect state_notify_id, state_notify_event and states[] */
-	int state_notify_id;
-	hbp_panel_event state_notify_event;
 };
 
 extern int hbp_exception_report(hbp_excep_type excep_tpye,

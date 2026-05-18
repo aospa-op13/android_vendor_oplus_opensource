@@ -171,6 +171,7 @@ struct oplus_configfs_device {
 	unsigned int nvid_support_flags;
 	int eis_status;
 	int eis_current;
+	int bms_status;
 	int plc_status;
 	bool plc_user_enable;
 	bool batt_health;
@@ -3538,6 +3539,56 @@ static ssize_t plc_store(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_RW(plc);
 
+static ssize_t bms_status_store(
+	struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct oplus_configfs_device *chip = dev->driver_data;
+	struct power_supply *batt_psy;
+	int val = 0;
+
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+	if (!buf) {
+		chg_err("buf is NULL\n");
+		return -EINVAL;
+	}
+
+	if (sscanf(buf, "%d", &val) != 1) {
+		chg_info("buf %s error\n", buf);
+		return -EINVAL;
+	}
+
+	chg_info("val = %d\n", val);
+
+	batt_psy = power_supply_get_by_name("battery");
+
+	chip->bms_status = val;
+	if (batt_psy) {
+		oplus_power_supply_changed_gp(batt_psy, 0);
+		power_supply_put(batt_psy);
+	}
+	return count;
+}
+
+static ssize_t bms_status_show(
+	struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct oplus_configfs_device *chip = dev->driver_data;
+	int counts = 0;
+
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	counts = chip->bms_status;
+
+	return sprintf(buf, "status=%d\n", counts);
+}
+static DEVICE_ATTR_RW(bms_status);
+
 static int get_adapter_power(struct oplus_configfs_device *chip)
 {
 	int power = 0;
@@ -4645,6 +4696,7 @@ static struct device_attribute *oplus_common_attributes[] = {
 	&dev_attr_sili_ic_alg_cfg,
 	&dev_attr_chg_up_limit,
 	&dev_attr_plc,
+	&dev_attr_bms_status,
 	&dev_attr_dec_delta,
 	&dev_attr_lpd_config,
 	&dev_attr_byb_status,

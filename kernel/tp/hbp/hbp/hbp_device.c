@@ -309,62 +309,10 @@ static void hbp_queue_init(struct frame_queue *queue)
 	queue->waitq_flag = QUEUE_WAIT;
 }
 
-static hbp_panel_event hbp_panel_event_convert(hbp_panel_event event)
-{
-	//TODO:
-	//(1) if oncell panel, ignore suspend event, only use early suspend event
-	//to avoid repeat early suspend or suspend event
-	//(2) if tddi ic, need update
-	if (event == HBP_PANEL_EVENT_SUSPEND) {
-		return HBP_PANEL_EVENT_EARLY_SUSPEND;
-	}
-
-	if (event == HBP_PANEL_EVENT_RESUME) {
-		return HBP_PANEL_EVENT_EARLY_RESUME;
-	}
-
-	return event;
-}
-
 static void hbp_panel_notify_callback(hbp_panel_event event, struct hbp_device *hbp_dev)
 {
-	if (!g_hbp) {
-		hbp_err("g_hbp is null\n");
-		return;
-	}
-	if (!hbp_dev) {
-		hbp_err("hbp_dev is null\n");
-		return;
-	}
 	if (event != HBP_PANEL_EVENT_UNKNOWN) {
-		if (hbp_dev->id >= MAX_DEVICES || !g_hbp->devices[hbp_dev->id]) {
-		    hbp_err("invalid device id = %d \n", hbp_dev->id);
-		    return;
-		}
-		hbp_debug("notify id %d event %d\n", hbp_dev->id, event);
-
-		event = hbp_panel_event_convert(event);
-
-		/* Protect concurrent access to states[] and state_notify fields */
-		mutex_lock(&g_hbp->state_notify_mtx);
-		/* Check if same event is already processed or being processed */
-		if ((g_hbp->states[hbp_dev->id].id == hbp_dev->id &&
-		     g_hbp->states[hbp_dev->id].state == event) ||
-		    (g_hbp->state_notify_id == hbp_dev->id &&
-		     g_hbp->state_notify_event == event)) {
-			mutex_unlock(&g_hbp->state_notify_mtx);
-			hbp_info("same screen notify event %d, ignore\n", event);
-			return;
-		}
-		g_hbp->state_notify_id = hbp_dev->id;
-		g_hbp->state_notify_event = event;
-		mutex_unlock(&g_hbp->state_notify_mtx);
-
-		if (g_hbp->state_notify_wq) {
-			queue_work(g_hbp->state_notify_wq, &g_hbp->state_notify_work);
-		} else {
-			hbp_err("state_notify_wq is null\n");
-		}
+		hbp_state_notify(g_hbp, hbp_dev->id, event);
 	}
 }
 
@@ -386,9 +334,7 @@ struct hbp_device *hbp_device_create(void *priv,
 	}
 
 	hbp_dev->state = HBP_PANEL_EVENT_EARLY_RESUME;
-	mutex_lock(&hbp->state_notify_mtx);
 	hbp->states[id].state = hbp_dev->state;
-	mutex_unlock(&hbp->state_notify_mtx);
 	hbp_dev->priv = priv;
 	hbp_dev->dev_ops = dev_ops;
 	hbp_dev->dev = dev;
