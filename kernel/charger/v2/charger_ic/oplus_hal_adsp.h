@@ -389,6 +389,8 @@ enum usb_property_id {
 	USB_REVERSE_CHG_SET_CURRENT,
 	USB_RVS_HIGH_MODE_EN,
 	USB_SET_WIRED_USB_STATUS,
+	/* PD partner SVID (lower 16 bits valid) */
+	USB_ADAPTER_SVID,
 #endif /*OPLUS_FEATURE_CHG_BASIC*/
 	USB_PROP_MAX,
 };
@@ -598,6 +600,7 @@ struct oplus_custom_gpio_pinctrl {
 	int tx_ovp_en_gpio;
 	int wrx_ovp_off_gpio;
 	int wrx_otg_en_gpio;
+	int supplementary_power_mos_gpio;
 	struct mutex pinctrl_mutex;
 	struct pinctrl *vchg_trig_pinctrl;
 	struct pinctrl_state *vchg_trig_default;
@@ -627,6 +630,9 @@ struct oplus_custom_gpio_pinctrl {
 	struct pinctrl *wrx_otg_en_pinctrl;
 	struct pinctrl_state *wrx_otg_en_active;
 	struct pinctrl_state *wrx_otg_en_sleep;
+	struct pinctrl *supplementary_power_pinctrl;
+	struct pinctrl_state *supplementary_power_mos_active;
+	struct pinctrl_state *supplementary_power_mos_sleep;
 };
 
 #endif
@@ -644,6 +650,7 @@ struct oplus_chg_iio {
 	struct iio_channel	*vph_pwr_chan;
 	struct iio_channel	*vbat_sns_qbg_chan;
 	struct iio_channel	*pmic_vbat_adc;
+	struct iio_channel	*shaft_btb_temp_chan;
 };
 
 enum oplus_sub_btb_adc_index {
@@ -894,7 +901,11 @@ struct battery_chg_dev {
 	int batt_full_para[CHARGING_TYPE_MAX][QBG_TEMP_MAX];
 	int batt_full_temp[QBG_TEMP_MAX];
 	bool batt_full_method_new;
+	bool power_mos_status;
+	bool need_check_mos;
 	bool pd_check_completed;
+	int mos_retry_cnt;
+	atomic_t is_shaft_btb_over;
 	bool adsp_reboot_discnt_chg_support;
 };
 

@@ -116,6 +116,7 @@ oplus_chg_v2-y += strategy/oplus_strategy_battery_smooth.o
 oplus_chg_v2-y += strategy/oplus_strategy_volt_fastchg_allow.o
 oplus_chg_v2-y += strategy/oplus_strategy_pcc.o
 oplus_chg_v2-y += strategy/oplus_strategy_pcc_v2.o
+oplus_chg_v2-y += strategy/oplus_strategy_cycle_current_derating.o
 oplus_chg_v2-y += monitor/oplus_monitor_core.o
 oplus_chg_v2-y += monitor/oplus_chg_track.o
 oplus_chg_v2-y += monitor/oplus_chg_exception.o

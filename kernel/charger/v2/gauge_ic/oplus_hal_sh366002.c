@@ -1194,14 +1194,11 @@ static s32 sh366002_gauge_restore_cell_model(struct chip_bq27541 *chip, char *pr
 	u16 cycle0 = 0;
 	u8 track_buf[64] = {0};
 
-	if (chip == NULL || chip->ic_dev == NULL || chip->client == NULL || profile_name == NULL) {
-		ret = -EFAULT;
-		goto fg_gauge_restore_cell_model_end;
-	}
+	if (chip == NULL || chip->ic_dev == NULL || chip->client == NULL || profile_name == NULL)
+		return -EFAULT;
 
 	ret = fg_gauge_get_default_cell_model(chip, profile_name, pBuf);
 	if (ret < 0) {
-		cycle0 = ret;
 		chg_err("fg_gauge_restore_cell_model err! cannot get default model! ret=%d\r\n", ret);
 		goto fg_gauge_restore_cell_model_end;
 	}
