@@ -1814,6 +1814,20 @@ static void oplus_otg_init_status_func(struct work_struct *work)
 	oplus_otg_ap_enable(bcdev, true);
 }
 
+static void oplus_chg_clear_vdm_info(struct battery_chg_dev *bcdev)
+{
+	if (!bcdev) {
+		chg_err("bcdev is NULL");
+		return;
+	}
+
+	chg_info("clear vdm_info\n");
+	mutex_lock(&bcdev->vdm_info_lock);
+	bcdev->vdm_info_cnt = 0;
+	memset(bcdev->vdm_info_data, 0, sizeof(bcdev->vdm_info_data));
+	mutex_unlock(&bcdev->vdm_info_lock);
+}
+
 static void oplus_cid_status_change_work(struct work_struct *work)
 {
 	struct battery_chg_dev *bcdev = container_of(work,
@@ -1842,6 +1856,8 @@ static void oplus_cid_status_change_work(struct work_struct *work)
 		schedule_delayed_work(&bcdev->release_qos_work, 0);
 	}
 	chg_info("cid_status[%d]\n", cid_status);
+	if (cid_status == 0)
+		oplus_chg_clear_vdm_info(bcdev);
 	if (pst && is_usb_psy_available(bcdev))
 		power_supply_changed(pst->psy);
 }
@@ -3299,6 +3315,54 @@ static void oplus_check_adspfg_status_work(struct work_struct *work)
 		schedule_delayed_work(&bcdev->check_adspfg_status, msecs_to_jiffies(10000));
 }
 
+static void oplus_chg_store_vdm_info(struct battery_chg_dev *bcdev,
+	u32 *vdm_info_data, size_t vdm_info_cnt)
+{
+	int i = 0;
+
+	if (vdm_info_cnt > OPLUS_VDM_INFO_MAX) {
+		vdm_info_cnt = OPLUS_VDM_INFO_MAX;
+		chg_err("Incorrect buffer length: %zu, max: %u\n", vdm_info_cnt, OPLUS_VDM_INFO_MAX);
+	}
+	mutex_lock(&bcdev->vdm_info_lock);
+	memmove(bcdev->vdm_info_data, vdm_info_data, vdm_info_cnt * sizeof(u32));
+	bcdev->vdm_info_cnt = vdm_info_cnt;
+	mutex_unlock(&bcdev->vdm_info_lock);
+	for (i = 0; i < vdm_info_cnt; i++) {
+		chg_info("vdm info buffer: 0x%08x\n", bcdev->vdm_info_data[i]);
+	}
+}
+
+static void handle_pd_info_buffer(struct battery_chg_dev *bcdev,
+	struct oplus_ap_read_pd_info_msg *resp_msg, size_t len)
+{
+	size_t buf_len;
+
+	if (len != sizeof(struct oplus_ap_read_pd_info_msg)) {
+		chg_err("Incorrect buffer length: %zu\n", len);
+		return;
+	}
+	chg_info("got the pd partner info msg_id=%d, len=%zu\n", resp_msg->msg_id, len);
+
+	buf_len = resp_msg->data_size;
+	if (buf_len == 0 || buf_len > sizeof(resp_msg->data_buffer)) {
+		chg_err("Incorrect buffer length: %zu\n", buf_len);
+		return;
+	}
+
+	switch (resp_msg->msg_id) {
+	case OPLUS_PD_INFO_MSG_ID_VDM_ID:
+		if (buf_len % sizeof(u32) != 0) {
+			chg_err("Incorrect buffer length: %zu\n", buf_len);
+			return;
+		}
+		oplus_chg_store_vdm_info(bcdev, resp_msg->data_buffer, buf_len / sizeof(u32));
+		break;
+	default:
+		chg_err("got an undefined pd info msg_id\n");
+		break;
+	}
+}
 
 static void handle_notification(struct battery_chg_dev *bcdev, void *data,
 				size_t len)
@@ -3625,6 +3689,9 @@ static int battery_chg_callback(void *priv, void *data, size_t len)
 	else if (hdr->opcode == OPLUS_OPCODE_GET_SINK_MSG) {
 		chg_info("OPLUS_OPCODE_GET_SINK_MSG handle\n");
 		handle_rechg_msg_handle(bcdev, data, len);
+	} else if (hdr->opcode == AP_OPCODE_PD_INFO_BUFFER) {
+		chg_info("AP_OPCODE_PD_INFO_BUFFER handle\n");
+		handle_pd_info_buffer(bcdev, data, len);
 	}
 #endif
 	else
@@ -6234,6 +6301,7 @@ static void oplus_plugin_irq_work(struct work_struct *work)
 		bcdev->ufcs_exiting = false;
 		bcdev->pd_chg_volt = OPLUS_PD_5V;
 		bcdev->pd_check_completed = false;
+		oplus_chg_clear_vdm_info(bcdev);
 		bcdev->hvdcp_detach_time = cpu_clock(smp_processor_id()) / CPU_CLOCK_TIME_MS;
 		chg_err("the hvdcp_detach_time:%llu, detect time %llu \n",
 			bcdev->hvdcp_detach_time, bcdev->hvdcp_detect_time);
@@ -10653,6 +10721,39 @@ static int oplus_set_usb_dpdm_ovp_disable(struct oplus_chg_ic_dev *ic_dev, bool 
 	return rc;
 }
 
+static int oplus_chg_get_vdm_info(struct oplus_chg_ic_dev *ic_dev, u32 *data, int *cnt)
+{
+	struct battery_chg_dev *bcdev;
+	int copy_cnt;
+
+	if (ic_dev == NULL) {
+		chg_err("ic_dev is NULL");
+		return -ENODEV;
+	}
+
+	bcdev = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!bcdev) {
+		chg_err("bcdev is NULL");
+		return -ENODEV;
+	}
+
+	if (data == NULL || cnt == NULL) {
+		chg_err("data or cnt is NULL");
+		return -EINVAL;
+	}
+	if (*cnt < 0) {
+		chg_err("cnt is invalid");
+		return -EINVAL;
+	}
+
+	mutex_lock(&bcdev->vdm_info_lock);
+	copy_cnt = min(*cnt, bcdev->vdm_info_cnt);
+	memmove(data, bcdev->vdm_info_data, sizeof(u32) * copy_cnt);
+	*cnt = copy_cnt;
+	mutex_unlock(&bcdev->vdm_info_lock);
+
+	return 0;
+}
 static void *oplus_chg_8350_buck_get_func(struct oplus_chg_ic_dev *ic_dev, enum oplus_chg_ic_func func_id)
 {
 	void *func = NULL;
@@ -10900,6 +11001,9 @@ static void *oplus_chg_8350_buck_get_func(struct oplus_chg_ic_dev *ic_dev, enum 
 		break;
 	case OPLUS_IC_FUNC_BUCK_SET_DPDM_OVP_DISABLE:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_SET_DPDM_OVP_DISABLE, oplus_set_usb_dpdm_ovp_disable);
+		break;
+	case OPLUS_IC_FUNC_BUCK_GET_VDM_INFO:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_BUCK_GET_VDM_INFO, oplus_chg_get_vdm_info);
 		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
@@ -15504,6 +15608,7 @@ static int battery_chg_probe(struct platform_device *pdev)
 	for (i = 0; i< AP_MESSAGE_MAX_SIZE; i++)
 		init_completion(&bcdev->ap_read_ack[i]);
 	mutex_init(&bcdev->ap_write_buffer_lock);
+	mutex_init(&bcdev->vdm_info_lock);
 	init_completion(&bcdev->ap_write_ack);
 	bcdev->ap_read_buffer_dump = devm_kzalloc(&pdev->dev, sizeof(*bcdev->ap_read_buffer_dump), GFP_KERNEL);
 	if (!bcdev->ap_read_buffer_dump)
