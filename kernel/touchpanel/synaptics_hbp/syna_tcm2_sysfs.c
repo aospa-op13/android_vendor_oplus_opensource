@@ -47,7 +47,7 @@
 #ifdef BUILD_BY_BAZEL
 #include <soc/oplus/touchpanel_event_notify.h>/* kernel 6.1 */
 #else
-#include "../oplus_touchscreen_v2/touchpanel_notify/touchpanel_event_notify.h"
+#include "../touchpanel_notify/touchpanel_event_notify.h"
 #endif
 
 #include "touchpanel_healthinfo/touchpanel_healthinfo.h"
@@ -892,127 +892,6 @@ exit:
 static struct kobj_attribute kobj_attr_gesture_coordinate =
 	__ATTR(gesture_coordinate, 0444, syna_sysfs_gesture_coordinate_show, NULL);
 
-static ssize_t syna_sysfs_double_tap_pressed_show(struct device *device,
-		struct device_attribute *attribute, char *buf)
-{
-	uint8_t ret = 0;
-	struct syna_tcm *tcm = dev_get_drvdata(device);
-
-	if (!tcm)
-		return -ENODEV;
-
-	ret = scnprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&tcm->double_tap_pressed));
-	atomic_set(&tcm->double_tap_pressed, 0);
-	return ret;
-}
-
-static DEVICE_ATTR(double_tap_pressed, S_IRUGO, syna_sysfs_double_tap_pressed_show, NULL);
-
-static ssize_t syna_sysfs_single_tap_pressed_show(struct device *device,
-		struct device_attribute *attribute, char *buf)
-{
-	uint8_t ret = 0;
-	struct syna_tcm *tcm = dev_get_drvdata(device);
-
-	if (!tcm)
-		return -ENODEV;
-
-	ret = scnprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&tcm->single_tap_pressed));
-	atomic_set(&tcm->single_tap_pressed, 0);
-	return ret;
-}
-
-static DEVICE_ATTR(single_tap_pressed, S_IRUGO, syna_sysfs_single_tap_pressed_show, NULL);
-
-static ssize_t syna_sysfs_high_rate_show(struct device *device,
-                struct device_attribute *attribute, char *buf)
-{
-        struct syna_tcm *tcm = dev_get_drvdata(device);
-        unsigned short config = 0;
-        int retval;
-
-        if (!tcm || !tcm->tcm_dev)
-                return -ENODEV;
-
-        retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, 0xE6, &config, 0);
-        if (retval < 0)
-                return scnprintf(buf, PAGE_SIZE, "0\n");
-
-        return scnprintf(buf, PAGE_SIZE, "%d\n", config == 3);
-}
-
-static ssize_t syna_sysfs_high_rate_write(struct device *device,
-                struct device_attribute *attribute, const char *buf, size_t count)
-{
-        struct syna_tcm *tcm = dev_get_drvdata(device);
-        int retval;
-        unsigned long val;
-
-        if (!tcm || !tcm->tcm_dev)
-                return -ENODEV;
-
-        if (kstrtoul(buf, 10, &val))
-                return -EINVAL;
-
-        if (val == 1)
-                retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, 3, RESP_IN_ATTN);
-        else if (val == 0)
-                retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, 2, RESP_IN_ATTN);
-        else
-                return -EINVAL;
-
-        if (retval < 0)
-                return retval;
-
-        return count;
-}
-
-static DEVICE_ATTR(high_rate, S_IRUGO | S_IWUSR, syna_sysfs_high_rate_show, syna_sysfs_high_rate_write);
-
-static ssize_t syna_sysfs_glove_mode_show(struct device *device,
-                struct device_attribute *attribute, char *buf)
-{
-        struct syna_tcm *tcm = dev_get_drvdata(device);
-        unsigned short config = 0;
-        int retval;
-
-        if (!tcm || !tcm->tcm_dev)
-                return -ENODEV;
-
-        retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, 0x0D, &config, 0);
-        if (retval < 0)
-                return scnprintf(buf, PAGE_SIZE, "0\n");
-
-        return scnprintf(buf, PAGE_SIZE, "%d\n", (config == 1) ? 1 : 0);
-}
-
-static ssize_t syna_sysfs_glove_mode_write(struct device *device,
-                struct device_attribute *attribute, const char *buf, size_t count)
-{
-        struct syna_tcm *tcm = dev_get_drvdata(device);
-        int retval;
-        unsigned long val;
-
-        if (!tcm || !tcm->tcm_dev)
-                return -ENODEV;
-
-        if (kstrtoul(buf, 10, &val))
-                return -EINVAL;
-
-        if (val == 1)
-                retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0x0D, 1, RESP_IN_ATTN);
-        else if (val == 0)
-                retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0x0D, 0, RESP_IN_ATTN);
-        else
-                return -EINVAL;
-
-        if (retval < 0)
-                return retval;
-
-        return count;
-}
-
-static DEVICE_ATTR(glove_mode, S_IRUGO | S_IWUSR, syna_sysfs_glove_mode_show, syna_sysfs_glove_mode_write);
 
 /**
  * fingerprint_trigger()
@@ -1126,18 +1005,6 @@ int syna_sysfs_create_dir(struct syna_tcm *tcm,
 		kobject_put(tcm->sysfs_dir);
 		return retval;
 	}
-
-	if (device_create_file(&pdev->dev, &dev_attr_double_tap_pressed))
-		return -12;
-
-	if (device_create_file(&pdev->dev, &dev_attr_single_tap_pressed))
-		return -12;
-
-	if (device_create_file(&pdev->dev, &dev_attr_high_rate))
-		return -12;
-
-	if (device_create_file(&pdev->dev, &dev_attr_glove_mode))
-		return -12;
 
 #ifdef HAS_TESTING_FEATURE
 	retval = syna_testing_create_dir(tcm, g_sysfs_dir);
@@ -2023,12 +1890,11 @@ retry:
 
 	if ((data[0] == CMD_SET_DYNAMIC_CONFIG) && (payload_length == 3)) {
 		if (data[3] == DC_GESTURE_TYPE_ENABLE) {
-			tcm->gesture_type = 0x3FFF;
+			tcm->gesture_type = (unsigned short)syna_pal_le2_to_uint(&data[4]);
 			syna_dev_update_lpwg_status(tcm);
 			syna_sysfs_set_fingerprint_prepare(tcm);
 			LOGE("HBP set gesture_type(0x%04x)\n", tcm->gesture_type);
 		} else if (data[3] == DC_TOUCH_AND_HOLD) {
-			tcm->gesture_type = 0x3FFF;
 			tcm->touch_and_hold = (unsigned short)syna_pal_le2_to_uint(&data[4]);
 			syna_dev_update_lpwg_status(tcm);
 			syna_sysfs_set_fingerprint_prepare(tcm);

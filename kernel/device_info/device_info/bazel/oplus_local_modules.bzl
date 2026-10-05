@@ -11,6 +11,9 @@ def define_oplus_local_modules():
             "device_info.c",
         ]),
         includes = ["."],
+        conditional_defines = {
+            "mtk":  ["CONFIG_MTK_PLATFORM", "CONFIG_OPLUS_DEVICE_INFO_MTK_PLATFORM"],
+        },
     )
 
     ddk_copy_to_dist_dir(

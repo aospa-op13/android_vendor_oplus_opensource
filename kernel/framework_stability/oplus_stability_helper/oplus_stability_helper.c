@@ -12,6 +12,7 @@
 #include "binder_watcher.h"
 #include "thread_watcher.h"
 #include "lowmem_watcher.h"
+#include "hang_watcher.h"
 
 #define ROOT_UID	0
 #define SYSTEM_UID	1000
@@ -42,20 +43,29 @@ static bool is_system_process(struct task_struct *t)
 	return false;
 }
 
+static bool is_top_thirdparty_process(struct task_struct *t)
+{
+	if (!strcmp(t->comm, "hinamworld.main")) {
+		return true;
+	}
+	return false;
+}
+
 static bool is_key_process(struct task_struct *t)
 {
 	struct pid *pgrp;
 	struct task_struct *taskp;
 
 	if (t->pid == t->tgid) {
-		if (is_system_process(t) || is_root_process(t)) {
+		if (is_system_process(t) || is_root_process(t) || is_top_thirdparty_process(t)) {
 			return true;
 		}
 	} else {
 		pgrp = get_task_pid(t->group_leader, PIDTYPE_PID);
 		if (pgrp != NULL) {
 			taskp = pid_task(pgrp, PIDTYPE_PID);
-			if (taskp != NULL && (is_system_process(taskp) || is_root_process(taskp))) {
+			if (taskp != NULL && (is_system_process(taskp)
+                                || is_root_process(taskp) || is_top_thirdparty_process(t))) {
 				return true;
 			}
 		}
@@ -73,14 +83,17 @@ void send_signal_catcher(void *ignore, int sig, struct task_struct *src, struct 
 		printk("<critical>Some other process %d:%d:%s (uid:%d ppid %d:%s) wants to send sig:%d to process %d:%d:%s\n",
 			src->tgid, src->pid, src->comm, task_uid(src).val, src->parent != NULL ? src->parent->pid : -1,
 			src->parent != NULL ? src->parent->comm : "null", sig, dst->tgid, dst->pid, dst->comm);
+		/* check if any system_server's thread blocked in status D when system_server watchdog happend */
+		check_system_server_hang(sig, src, dst);
 	}
 }
 
-
 struct workqueue_struct *thread_watcher_wq;
 struct thread_watcher_args  *work_args;
+struct pending_transaction_watcher_args  *pending_transaction_work_args;
 
 struct kmem_cache *thread_watcher_struct_cachep;
+struct kmem_cache *pending_transaction_watcher_struct_cachep;
 
 
 static int __init helper_init(void)
@@ -90,6 +103,7 @@ static int __init helper_init(void)
 	REGISTER_TRACE_VH(do_send_sig_info, send_signal_catcher);
 	REGISTER_TRACE_VH(binder_alloc_new_buf_locked, binder_buffer_watcher);
 	REGISTER_TRACE_VH(copy_process, thread_watcher);
+	REGISTER_TRACE_VH(binder_proc_transaction_finish, pending_transaction_watcher);
 
 	thread_watcher_wq =
 		create_workqueue("stability_thread_watcher");
@@ -112,6 +126,20 @@ static int __init helper_init(void)
 		pr_err("create thread watcher struct cachep failed , ret=%d\n", ret);
 		return ret;
 	}
+
+	pending_transaction_watcher_struct_cachep = kmem_cache_create(
+		"pending_transaction_watcher_struct_cachep",         /* Name */
+		sizeof(struct pending_transaction_watcher_args),   /* Object Size */
+		0,                              /* Alignment */
+		SLAB_HWCACHE_ALIGN,             /* Flags */
+		NULL);
+
+
+	if (NULL == pending_transaction_watcher_struct_cachep) {
+		ret = -ENOMEM;
+		pr_err("create pending transaction watcher struct cachep failed , ret=%d\n", ret);
+		return ret;
+	}
 	create_frk_netlink(33);
 
 	/* register trace_mm_vmscan_direct_reclaim_begin */
@@ -130,12 +158,16 @@ static void __exit helper_exit(void)
 	UNREGISTER_TRACE_VH(do_send_sig_info, send_signal_catcher);
 	UNREGISTER_TRACE_VH(binder_alloc_new_buf_locked, binder_buffer_watcher);
 	UNREGISTER_TRACE_VH(copy_process, thread_watcher);
+	UNREGISTER_TRACE_VH(binder_proc_transaction_finish, pending_transaction_watcher);
 	if (thread_watcher_wq) {
 		destroy_workqueue(thread_watcher_wq);
 		thread_watcher_wq = NULL;
 	}
 	if (thread_watcher_struct_cachep) {
 		kmem_cache_destroy(thread_watcher_struct_cachep);
+	}
+	if (pending_transaction_watcher_struct_cachep) {
+		kmem_cache_destroy(pending_transaction_watcher_struct_cachep);
 	}
 	destroy_frk_netlink();
 

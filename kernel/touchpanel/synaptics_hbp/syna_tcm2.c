@@ -757,82 +757,6 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 			LOGD("Gesture detected, id:%d\n",
 				touch_data->gesture_id);
 
-			switch (touch_data->gesture_id) {
-			case DTAP_DETECT:
-				touch_data->gesture_type = DOU_TAP;
-				break;
-
-			case STAP_DETECT:
-				touch_data->gesture_type = SINGLE_TAP;
-				break;
-
-			case CIRCLE_DETECT:
-				touch_data->gesture_type = CIRCLE_GESTURE;
-				break;
-
-			case SWIPE_DETECT:
-				if (touch_data->extra_gesture_info[4] == 0x41) { /*x+*/
-					touch_data->gesture_type = LEFT2RIGHT_SWIP;
-				} else if (touch_data->extra_gesture_info[4] == 0x42) { /*x-*/
-					touch_data->gesture_type = RIGHT2LEFT_SWIP;
-				} else if (touch_data->extra_gesture_info[4] == 0x44) { /*y+*/
-					touch_data->gesture_type = UP2DOWN_SWIP;
-				} else if (touch_data->extra_gesture_info[4] == 0x48) { /*y-*/
-					touch_data->gesture_type = DOWN2UP_SWIP;
-				} else if (touch_data->extra_gesture_info[4] == 0x81) { /*2x-*/
-					touch_data->gesture_type = DOU_SWIP;
-				} else if (touch_data->extra_gesture_info[4] == 0x82) { /*2x+*/
-					touch_data->gesture_type = DOU_SWIP;
-				} else if (touch_data->extra_gesture_info[4] == 0x84) { /*2y+*/
-					touch_data->gesture_type = DOU_SWIP;
-				} else if (touch_data->extra_gesture_info[4] == 0x88) { /*2y-*/
-					touch_data->gesture_type = DOU_SWIP;
-				}
-				break;
-
-			case M_UNICODE:
-				touch_data->gesture_type = M_GESTRUE;
-				break;
-
-			case W_UNICODE:
-				touch_data->gesture_type = W_GESTURE;
-				break;
-
-			case VEE_DETECT:
-				if (touch_data->extra_gesture_info[2] == 0x02) { /*up*/
-					touch_data->gesture_type = UP_VEE;
-				} else if (touch_data->extra_gesture_info[2] == 0x01) { /*down*/
-					touch_data->gesture_type = DOWN_VEE;
-				} else if (touch_data->extra_gesture_info[2] == 0x08) { /*left*/
-					touch_data->gesture_type = LEFT_VEE;
-				} else if (touch_data->extra_gesture_info[2] == 0x04) { /*right*/
-					touch_data->gesture_type = RIGHT_VEE;
-				}
-				break;
-
-			case TOUCH_HOLD_DOWN:
-				touch_data->gesture_type = FINGER_PRINTDOWN;
-				break;
-
-			case TOUCH_HOLD_UP:
-				touch_data->gesture_type = FRINGER_PRINTUP;
-				break;
-
-			case HEART_DETECT:
-				touch_data->gesture_type = HEART;
-				break;
-
-			case S_UNICODE:
-				touch_data->gesture_type = S_GESTURE;
-				break;
-
-			case TRIANGLE_DETECT:
-			default:
-				TPD_INFO("not support\n");
-				touch_data->gesture_type = UNKOWN_GESTURE;
-				break;
-			}
-
 			if (touch_data->gesture_id == TOUCH_HOLD_DOWN) {
 				if (!tcm->is_fp_down) {
 					memset(&fp_info, 0, sizeof(struct fp_underscreen_info));
@@ -913,18 +837,11 @@ static void syna_dev_report_input_events(struct syna_tcm *tcm)
 					input_sync(input_dev);
 					touchpanel_event_call_notifier(EVENT_ACTION_UNDER_WATER, (void *)&tcm->under_water);
 				}
-			} else if (touch_data->gesture_id == DTAP_DETECT) {
-				input_report_key(input_dev, KEY_WAKEUP, 1);
-				input_sync(input_dev);
-				input_report_key(input_dev, KEY_WAKEUP, 0);
-				input_sync(input_dev);
 			} else {
-				if (touch_data->gesture_type != DOU_TAP && touch_data->gesture_type != SINGLE_TAP) {
-					input_report_key(input_dev, KEY_GESTURE_START + touch_data->gesture_type, 1);
-					input_sync(input_dev);
-					input_report_key(input_dev, KEY_GESTURE_START + touch_data->gesture_type, 0);
-					input_sync(input_dev);
-				}
+				input_report_key(input_dev, KEY_F4, 1);
+				input_sync(input_dev);
+				input_report_key(input_dev, KEY_F4, 0);
+				input_sync(input_dev);
 			}
 		}
 	}
@@ -1049,7 +966,7 @@ exit:
  */
 static int syna_dev_create_input_device(struct syna_tcm *tcm)
 {
-	int retval = 0, i = 0;
+	int retval = 0;
 	struct tcm_dev *tcm_dev = tcm->tcm_dev;
 	struct input_dev *input_dev = NULL;
 
@@ -1100,9 +1017,8 @@ static int syna_dev_create_input_device(struct syna_tcm *tcm)
 
 	set_bit(KEY_SLEEP, input_dev->keybit);
 #ifdef ENABLE_WAKEUP_GESTURE
-	for (i = UP_VEE; i <= S_GESTURE; i++) {
-		set_bit(KEY_GESTURE_START + i, input_dev->keybit);
-	}
+	set_bit(KEY_F4, input_dev->keybit);
+	input_set_capability(input_dev, EV_KEY, KEY_F4);
 	set_bit(KEY_UNDER_WATER, input_dev->keybit);
 	input_set_capability(input_dev, EV_KEY, KEY_UNDER_WATER);
 	set_bit(KEY_ON_WATER, input_dev->keybit);
@@ -2320,14 +2236,6 @@ static void syna_speedup_resume(struct work_struct *work)
 
 	syna_send_signal(tcm, SIG_DISPLAY_ON);
 
-	/* We want to restore touch rate and glove mode to previous value */
-	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0xE6, tcm->touch_rate, RESP_IN_ATTN);
-	if (retval < 0)
-		LOGE("Failed to restore touch rate\n");
-
-	retval = syna_tcm_set_dynamic_config(tcm->tcm_dev, 0x0D, tcm->glove_mode, RESP_IN_ATTN);
-	if (retval < 0)
-		LOGE("Failed to restore touch rate\n");
 exit:
 	tcm->sub_pwr_state = SUB_PWR_RESUME_DONE;
 	tcm->slept_in_early_suspend = false;
@@ -2351,22 +2259,14 @@ exit:
  */
 static int syna_dev_suspend(struct device *dev)
 {
+#ifdef POWER_ALIVE_AT_SUSPEND
 	int retval;
+#endif
 	struct syna_tcm *tcm = dev_get_drvdata(dev);
 	struct syna_hw_interface *hw_if = tcm->hw_if;
 	bool irq_disabled = true;
 	u64 start_time = 0;
 	struct fp_underscreen_info fp_info;
-	unsigned short config = 0;
-
-	/* We want to remember high touch polling rate and glove mode state */
-	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, 0xE6, &config, 0);
-	if (retval >= 0)
-		tcm->touch_rate = config;
-
-	retval = syna_tcm_get_dynamic_config(tcm->tcm_dev, 0x0D, &config, 0);
-	if (retval >= 0)
-		tcm->glove_mode = config;
 
 	/* exit directly if device is already in suspend state */
 	if (tcm->pwr_state != PWR_ON)
@@ -3624,8 +3524,8 @@ static int syna_dev_probe(struct platform_device *pdev)
 	tcm->helper_enabled = false;
 #endif
 #ifdef ENABLE_WAKEUP_GESTURE
-	tcm->lpwg_enabled = true;
-	tcm->gesture_type = 0x3FFF; /* Enable all gestures */
+	tcm->lpwg_enabled = false;
+	tcm->gesture_type = 0x0000; /* Disable All Gesture */
 	tcm->touch_and_hold = 0;
 	syna_dev_update_lpwg_status(tcm);
 #else
@@ -3711,10 +3611,6 @@ static int syna_dev_probe(struct platform_device *pdev)
 		LOGI("%s: not in normal mode, return.\n", __func__);
 		return 0;
 	}
-
-	//set custom atomic adds
-	atomic_set(&tcm->single_tap_pressed, 0);
-	atomic_set(&tcm->double_tap_pressed, 0);
 
 #ifdef HAS_SYSFS_INTERFACE
 	/* create the device file and register to char device classes */

@@ -18,6 +18,7 @@
 enum event_no {
 	THREAD_WATCHER_EVENT = 1,
 	LOWMEM_WATCHER_EVENT = 2,
+	PENDING_TRANSACTION_WATCHER_EVENT = 3,
 };
 
 #define OPLUS_FRK_FAMILY_NAME			"oplus_frk_nl"

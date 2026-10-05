@@ -51,12 +51,8 @@ TRACE_EVENT(stats_report,
 
 #endif /* _TRACE_TOUCH_H */
 
-#ifndef TOUCHPANEL_STATS_TRACE_INCLUDE_PATH
-#define TOUCHPANEL_STATS_TRACE_INCLUDE_PATH ../../../vendor/oplus/kernel/touchpanel/synaptics_hbp/touchpanel_healthinfo
-#endif
-
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH TOUCHPANEL_STATS_TRACE_INCLUDE_PATH
+#define TRACE_INCLUDE_PATH  ../../../vendor/oplus/kernel/touchpanel/synaptics_hbp/touchpanel_healthinfo
 
 #undef TRACE_INCLUDE_FILE
 #define TRACE_INCLUDE_FILE touchpanel_stats

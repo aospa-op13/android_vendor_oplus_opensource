@@ -51,7 +51,7 @@
 #else
 #include "../oplus_touchscreen_v2/tp_devices.h"
 #include "../oplus_touchscreen_v2/touchpanel_common.h"
-#include "../oplus_touchscreen_v2/touchpanel_notify/touchpanel_event_notify.h"
+#include "../touchpanel_notify/touchpanel_event_notify.h"
 #endif
 
 #define PLATFORM_DRIVER_NAME "synaptics_tcm_hbp"
@@ -722,10 +722,6 @@ struct syna_tcm {
 	bool data_record;
 	bool enter_force_doze;
 	bool under_water;
-	atomic_t single_tap_pressed;
-	atomic_t double_tap_pressed;
-	unsigned short touch_rate;
-	unsigned short glove_mode;
 
 	unsigned int waiting_frame;
 	unsigned int wait_for_ioctl_operation;

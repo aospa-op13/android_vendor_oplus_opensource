@@ -40,7 +40,7 @@
 
 #include "synaptics_touchcom_func_base.h"
 #include "synaptics_touchcom_func_touch.h"
-#include "synaptics_touchcom_core_dev.h"
+#include"synaptics_touchcom_core_dev.h"
 #include "../../../../hbp_spi.h"
 #include "../../../../hbp_core.h"
 

@@ -116,13 +116,6 @@ struct touchpanel_data *g_tp[TP_SUPPORT_MAX] = {NULL};
 static DEFINE_MUTEX(tp_core_lock);
 int cur_tp_index = 0;
 EXPORT_SYMBOL(cur_tp_index);
-
-static int sigle_num = 0;
-u64 tpstart, tpend;
-static int pointx[2] = {0, 0};
-static int pointy[2] = {0, 0};
-
-#define ABS(a, b) ((a - b > 0) ? a - b : b - a)
 /*******Part2:declear Area********************************/
 static void speedup_resume(struct work_struct *work);
 static void lcd_trigger_load_tp_fw(struct work_struct *work);
@@ -336,9 +329,6 @@ void operate_mode_switch(struct touchpanel_data *ts)
 
 		if (ts->glove_mode_support || ts->leather_cover_mode_support) {
 			mode_switch_health(ts, MODE_LEATHER_COVER, ts->glove_enable);
-		}
-		if (ts->game_switch_support) {
-			ts->ts_ops->mode_switch(ts->chip_data, MODE_GAME, ts->noise_level);
 		}
 
 		if (ts->charger_pump_support) {
@@ -662,7 +652,7 @@ static inline void tp_touch_down(struct touchpanel_data *ts, struct point_info p
 	}
 	if (ts->last_x_y_point[id].x != points.x || ts->last_x_y_point[id].y != points.y) {
 		cost_time = ktime_to_us(ktime_get()) - ktime_to_us(ts->monitor_data.irq_to_report_timer);
-		//input_report_abs(ts->input_dev, ABS_TOUCH_COST_TIME_KERNEL, (cost_time < MAX_TOUCH_COST_TIME) ? cost_time : MAX_TOUCH_COST_TIME);
+		input_report_abs(ts->input_dev, ABS_TOUCH_COST_TIME_KERNEL, (cost_time < MAX_TOUCH_COST_TIME) ? cost_time : MAX_TOUCH_COST_TIME);
 	}
 	ts->last_x_y_point[id].x = points.x;
 	ts->last_x_y_point[id].y = points.y;
@@ -795,36 +785,6 @@ static void tp_geture_info_transform(struct gesture_info *gesture,
 				 resolution_info->LCD_HEIGHT / (resolution_info->max_y);
 }
 
-int sec_double_tap(struct gesture_info *gesture)
-{
-    uint32_t timeuse = 0;
-
-    if (sigle_num == 0) {
-        tpstart = ktime_get_real_ns();
-        pointx[0] = gesture->Point_start.x;
-        pointy[0] = gesture->Point_start.y;
-        sigle_num++;
-        TPD_DEBUG("first enter double tap\n");
-    } else if (sigle_num == 1) {
-        tpend = ktime_get_real_ns();
-        pointx[1] = gesture->Point_start.x;
-        pointy[1] = gesture->Point_start.y;
-        sigle_num = 0;
-        timeuse = tpend - tpstart;
-        TPD_DEBUG("timeuse = %d, distance[x] = %d, distance[y] = %d\n", timeuse, ABS(pointx[0], pointx[1]), ABS(pointy[0], pointy[1]));
-        if ((ABS(pointx[0], pointx[1]) < 150) && (ABS(pointy[0], pointy[1]) < 200) && (timeuse < 500000000)) {
-            return 1;
-        } else {
-            TPD_DEBUG("not match double tap\n");
-            tpstart = ktime_get_real_ns();
-            pointx[0] = gesture->Point_start.x;
-            pointy[0] = gesture->Point_start.y;
-            sigle_num = 1;
-        }
-    }
-    return 0;
-}
-
 static void tp_gesture_handle(struct touchpanel_data *ts)
 {
 	struct gesture_info gesture_info_temp;
@@ -845,15 +805,6 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 		ts->ts_ops->get_gesture_info_auto(ts->chip_data, &gesture_info_temp, &ts->resolution_info);
 	}
 	tp_geture_info_transform(&gesture_info_temp, &ts->resolution_info);
-
-	if (ts->panel_data.manufacture_info.manufacture
-		&& !strncmp(ts->panel_data.manufacture_info.manufacture, "SEC_", 4)) {
-		if (gesture_info_temp.gesture_type == SINGLE_TAP) {
-			if (sec_double_tap(&gesture_info_temp) == 1) {
-				gesture_info_temp.gesture_type = DOU_TAP;
-			}
-		}
-	}
 
 	TP_INFO(ts->tp_index, "detect %s gesture\n",
 		gesture_info_temp.gesture_type == DOU_TAP ? "double tap" :
@@ -895,20 +846,9 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 
 #endif /* end of CONFIG_OPLUS_TP_APK*/
 
-	if (gesture_info_temp.gesture_type == DOU_TAP
-			&& CHK_BIT(ts->gesture_enable_indep, (1 << gesture_info_temp.gesture_type))) {
-		tp_memcpy(&ts->gesture, sizeof(ts->gesture), \
-			  &gesture_info_temp, sizeof(struct gesture_info), \
-			  sizeof(struct gesture_info));
-		input_report_key(ts->input_dev, KEY_WAKEUP, 1);
-		input_sync(ts->input_dev);
-		input_report_key(ts->input_dev, KEY_WAKEUP, 0);
-		input_sync(ts->input_dev);
-
-	} else if (gesture_info_temp.gesture_type != UNKOWN_GESTURE
+	if (gesture_info_temp.gesture_type != UNKOWN_GESTURE
 	    && gesture_info_temp.gesture_type != FINGER_PRINTDOWN
-	    && gesture_info_temp.gesture_type != FRINGER_PRINTUP
-	    && CHK_BIT(ts->gesture_enable_indep, (1 << gesture_info_temp.gesture_type))) {
+	    && gesture_info_temp.gesture_type != FRINGER_PRINTUP) {
 		retval = tp_memcpy(&ts->gesture, sizeof(ts->gesture), \
 			  &gesture_info_temp, sizeof(struct gesture_info), \
 			  sizeof(struct gesture_info));
@@ -923,9 +863,9 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 			}
 		}
 
-		input_report_key(ts->input_dev, KEY_GESTURE_START + gesture_info_temp.gesture_type, 1);
+		input_report_key(ts->input_dev, KEY_F4, 1);
 		input_sync(ts->input_dev);
-		input_report_key(ts->input_dev, KEY_GESTURE_START + gesture_info_temp.gesture_type, 0);
+		input_report_key(ts->input_dev, KEY_F4, 0);
 		input_sync(ts->input_dev);
 
 	} else if (gesture_info_temp.gesture_type == FINGER_PRINTDOWN) {
@@ -1975,7 +1915,7 @@ static struct attribute_group properties_attr_group = {
  */
 static int init_input_device(struct touchpanel_data *ts)
 {
-	int ret = 0, i = 0;
+	int ret = 0;
 	struct kobject *vk_properties_kobj;
 	static  bool board_properties = false;
 
@@ -2053,8 +1993,8 @@ static int init_input_device(struct touchpanel_data *ts)
 	set_bit(ABS_MT_POSITION_X, ts->input_dev->absbit);
 	set_bit(ABS_MT_POSITION_Y, ts->input_dev->absbit);
 	set_bit(ABS_MT_PRESSURE, ts->input_dev->absbit);
-	/*set_bit(ABS_TOUCH_COST_TIME_KERNEL, ts->input_dev->absbit);
-	set_bit(ABS_TOUCH_COST_TIME_ALGO, ts->input_dev->absbit);
+	set_bit(ABS_TOUCH_COST_TIME_KERNEL, ts->input_dev->absbit);
+	/*set_bit(ABS_TOUCH_COST_TIME_ALGO, ts->input_dev->absbit);
 	set_bit(ABS_TOUCH_COST_TIME_DAEMON, ts->input_dev->absbit);*/
 	set_bit(ABS_MT_TOOL_TYPE, ts->input_dev->absbit);
 	set_bit(INPUT_PROP_DIRECT, ts->input_dev->propbit);
@@ -2066,10 +2006,6 @@ static int init_input_device(struct touchpanel_data *ts)
 
 	if (ts->black_gesture_support) {
 		set_bit(KEY_F4, ts->input_dev->keybit);
-		set_bit(KEY_WAKEUP, ts->input_dev->keybit);
-		for (i = UP_VEE; i <= S_GESTURE; i++) {
-			set_bit(KEY_GESTURE_START + i, ts->input_dev->keybit);
-		}
 #ifdef CONFIG_OPLUS_TP_APK
 		set_bit(KEY_POWER, ts->input_dev->keybit);
 #endif /*end of CONFIG_OPLUS_TP_APK*/
@@ -2134,8 +2070,8 @@ static int init_input_device(struct touchpanel_data *ts)
 			     ts->resolution_info.max_x - 1, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0,
 			     ts->resolution_info.max_y - 1, 0, 0);
-	/*input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_KERNEL, 0, MAX_TOUCH_COST_TIME, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_ALGO, 0, MAX_TOUCH_COST_TIME, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_KERNEL, 0, MAX_TOUCH_COST_TIME, 0, 0);
+	/*input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_ALGO, 0, MAX_TOUCH_COST_TIME, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_DAEMON, 0, MAX_TOUCH_COST_TIME, 0, 0);*/
 	input_set_drvdata(ts->input_dev, ts);
 	input_set_drvdata(ts->kpd_input_dev, ts);
@@ -2467,7 +2403,8 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->black_gesture_support   = of_property_read_bool(np,
 				      "black_gesture_support");
 
-	ts->black_gesture_indep_support = true;
+	ts->black_gesture_indep_support = of_property_read_bool(np,
+								"black_gesture_indep_support");
 
 	ts->gesture_test_support    = of_property_read_bool(np,
 				      "black_gesture_test_support");
@@ -4484,7 +4421,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	}
 
 	if (ts->pen_support) {	/* Default to enable pen function when boot up */
-			ts->is_pen_connected = 1;
+			ts->is_pen_connected = 0;
 			ts->is_pen_attracted = 0;
 	}
 
@@ -4533,7 +4470,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	ts->hall_status = false;
 	ts->is_suspended = 0;
 	ts->suspend_state = TP_SPEEDUP_RESUME_COMPLETE;
-	ts->gesture_enable = 1;
+	ts->gesture_enable = 0;
 	ts->fd_enable = 0;
 	ts->fp_enable = 0;
 	ts->aiunit_game_enable = 0;

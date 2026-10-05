@@ -543,7 +543,7 @@ static struct platform_driver fts_dev_driver = {
 	},
 };
 
-static int __init fts_platform_init(void)
+static int __init fts_platform_init()
 {
 	return platform_driver_register(&fts_dev_driver);
 }

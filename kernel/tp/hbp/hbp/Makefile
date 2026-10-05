@@ -12,8 +12,8 @@ oplus_hbp_core-y += hbp_sysfs.o
 oplus_hbp_core-y += hbp_exception.o
 oplus_hbp_core-y += hbp_healthinfo.o
 
-ccflags-y += -I$(srctree)/$(src)
+CFLAGS_hbp_core.o := -I$(src)
 
-obj-m += oplus_hbp_core.o
+obj-$(CONFIG_TOUCHSCREEN_HBP_CORE) += oplus_hbp_core.o
 
 obj-y += chips/

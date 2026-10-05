@@ -1863,4 +1863,3 @@ int nfg8011b_set_fast_sampling(struct chip_bq27541 *chip, bool enable)
 	return ret;
 }
 
-

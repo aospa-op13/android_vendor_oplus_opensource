@@ -12,6 +12,7 @@ def define_oplus_local_modules():
             "frk_netlink.c",
             "thread_watcher.c",
             "lowmem_watcher.c",
+            "hang_watcher.c",
             "*.h",
         ]),
         includes = ["."],

@@ -91,7 +91,7 @@
 
 #if defined(CONFIG_OPLUS_FINGERPRINT_GKI_ENABLE)
 #if IS_ENABLED(CONFIG_TOUCHPANEL_NOTIFY)
-#include "../../oplus_touchscreen_v2/touchpanel_notify/touchpanel_event_notify.h"
+#include "touchpanel_event_notify.h"
 #endif
 #endif
 
